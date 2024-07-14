@@ -9,7 +9,18 @@ from .computations import ClassificationType, classification_length_limits
 from util.string_utils import split_text_if_long
 
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 class TextModelManager:
+    # Make this a singleton
+    def __new__(cls):
+        if not hasattr(cls, "instance"):
+            logger.info("Instantiating TextModelManager.")
+            cls.instance = super(TextModelManager, cls).__new__(cls)
+        return cls.instance
+
     def __init__(self):
         # Cache instanced classification models and functions
         self._models = {}
