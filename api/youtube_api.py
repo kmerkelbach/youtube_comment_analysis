@@ -247,30 +247,34 @@ class YoutubeAPI:
         for comm in tqdm(comments_raw, desc="Converting comments to our own class ..."):
             comments_new.append(self._instantiate_comment(comm))
         return comments_new
-
-    @staticmethod
-    def _key_for_comment(comm: Comment) -> str:
-        return f"{comm.author}@{comm.time.isoformat()}: '{comm.text}' ({len(comm.replies)} replies)"
     
-    # Deduplicate top-level comments
-    def _deduplicate_toplevel(self, comments: List[Comment]):
-        seen = set()
-        deduped = []
+    def _deduplicate_comments(self, comments: List[Comment], silent=False):
+        def key_for_comment(comm: Comment) -> str:
+            return f"{comm.author}@{comm.time.isoformat()}: '{comm.text}' ({len(comm.replies)} replies)"
         
-        for comm in tqdm(comments, desc="Deduplicating comments ..."):
-            # Get unique key for comment
-            k = self._key_for_comment(comm)
-        
-            # Skip comment if we have already seen it
-            if k in seen:
-                continue
+        def deduplicate(comments: List[Comment], silent=False):
+            seen = set()
+            deduped = []
             
-            seen.add(k)
-        
-            # Add comment to list of deduplicated comments
-            deduped.append(comm)
+            for comm in tqdm(comments, desc="Deduplicating comments ...", disable=silent):
+                # Get unique key for comment
+                k = key_for_comment(comm)
+            
+                # Skip comment if we have already seen it
+                if k in seen:
+                    continue
+                
+                seen.add(k)
 
-        return deduped
+                # Deduplicate replies
+                comm.replies = deduplicate(comments=comm.replies, silent=True)
+            
+                # Add comment to list of deduplicated comments
+                deduped.append(comm)
+
+            return deduped
+        
+        return deduplicate(comments=comments, silent=silent)
     
     def get_comments(self, video_id: Optional[str] = None, req: int = None):
         video_id = self._get_video_id(video_id)
@@ -288,6 +292,6 @@ class YoutubeAPI:
         comments = self._instantiate_all_comments(comments_raw)
 
         # Remove duplicate comments
-        comments = self._deduplicate_toplevel(comments)
+        comments = self._deduplicate_comments(comments)
         
         return comments

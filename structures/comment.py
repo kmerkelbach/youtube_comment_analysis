@@ -32,6 +32,9 @@ class Comment:
             self._embedding = self._text_model_manager.embed(self.text)
         return self._embedding
 
+    def num_replies(self):
+        return len(self.replies)
+
     def __repr__(self):
         return f"Comment({self.author} @ {self.time.isoformat()}: '{self.text}') ({self.likes} likes; {len(self.replies)} replies)"
 
