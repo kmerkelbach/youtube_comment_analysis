@@ -295,3 +295,11 @@ class YoutubeAPI:
         comments = self._deduplicate_comments(comments)
         
         return comments
+
+    def get_video_lang(self, video_id: Optional[str] = None):
+        video_id = self._get_video_id(video_id)
+
+        video_info = self.get_video_info(video_id)
+
+        lang = video_info[field_items][0][field_sni][field_audio_lang].lower()
+        return lang

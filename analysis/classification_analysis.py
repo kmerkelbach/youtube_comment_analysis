@@ -136,3 +136,13 @@ class ClassificationAnalyzer:
 
         out_str = "\n".join(out_lines)
         return out_str
+    
+    def run_all_analyses(self):
+        out_lines = []
+
+        out_lines.append("All results are weighted by comment likes.")
+        for classi_type in ClassificationType:
+            out_lines.append(self.classification_analysis(classi_type))
+            out_lines.append("")
+
+        return "\n".join(out_lines)
