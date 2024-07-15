@@ -33,7 +33,18 @@ field_cmmt_cnt = "commentCount"
 field_audio_lang = "defaultAudioLanguage"
 
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 class YoutubeAPI:
+    # Make this a singleton
+    def __new__(cls):
+        if not hasattr(cls, "instance"):
+            logger.info("Instantiating YoutubeAPI.")
+            cls.instance = super(YoutubeAPI, cls).__new__(cls)
+        return cls.instance
+
     def __init__(self) -> None:
         # Set up client
         api_key = os.getenv("YOUTUBE_API_KEY")

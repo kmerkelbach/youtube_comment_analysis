@@ -16,3 +16,11 @@ def split_text_if_long(text, max_len=1500):
             parts.append(p)
             text = text[len(p):].strip()
         return parts
+
+
+def truncate_line(text: str, max_length: int) -> str:
+    if len(text) > max_length:
+        text = text[:max_length]
+        text = " ".join(text.split()[:-1])
+        text += "..."
+    return text

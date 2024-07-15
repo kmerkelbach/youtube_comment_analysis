@@ -3,7 +3,18 @@ import time
 from fireworks.client import Fireworks
 
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 class LLM:
+    # Make this a singleton
+    def __new__(cls):
+        if not hasattr(cls, "instance"):
+            logger.info("Instantiating LLM.")
+            cls.instance = super(LLM, cls).__new__(cls)
+        return cls.instance
+
     def __init__(self) -> None:
         # Set up client
         self._client = Fireworks(api_key=os.getenv("FIREWORKSAI_KEY"))
