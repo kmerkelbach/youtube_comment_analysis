@@ -3,13 +3,13 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from collections import defaultdict
-import re
 
 
 from structures.comment import Comment
 from models.computations import ClassificationType
 from models.math_funcs import max_class
-from util.string_utils import truncate_line
+from util.string_utils import truncate_line, post_process_extract_statements, post_process_single_entry_json
+from util.file_utils import named_dir
 from api.youtube_api import YoutubeAPI
 from models.llm_api import LLM
 
@@ -23,6 +23,16 @@ class StatementsAnalyzer:
         self._comments = comments
         self._youtube = YoutubeAPI()
         self._llm = LLM()
+
+        # Settings for prompt of agreement assessment
+        self.agreement_prompt_settings = {
+            "min": -5,
+            "neut": 0,
+            "max": 5
+        }
+
+        # Store results of statement agreement assessment - I can later use these samples to train a cheaper model
+        self._data_dir = named_dir("agreements")
 
         # Grouped comments
         self._sentiment_groups = None
@@ -85,22 +95,20 @@ class StatementsAnalyzer:
         prompt = "\n".join(lines)
         return prompt
     
-    def _post_process_extract_statements(self, llm_res_raw: str) -> List[str]:
-        # Split by lines
-        lines = llm_res_raw.split("\n")
-        lines = [l for l in lines if len(l) > 0]  # remove blank lines
+    def build_prompt_do_statements_agree(self, statement_1: str, statement_2: str) -> str:
+        title = self._youtube.get_title(self.video_id)
+        lines = ["You are a professional YouTube video comment analyst. Given a video title and a statement (or a comment) about the video, decide if the statements two agree. Note that it may be possible for a statement or a comment to express the desire for change or to voice disagreement."]
+        lines.append(f"Video title: {title}")
+        lines.append(f"Statement 1: {statement_1}")
+        lines.append(f"Statement 2: {statement_2}")
 
-        # Look for enumeration at the start of the line (keep lines such as those starting with "4. ", "15.", "- ", or "• ")
-        matched = [(l, re.search("^(\d+\.|-|•|\*)", l)) for l in lines]
-        matched = [(l, m) for (l, m) in matched if m is not None]
+        lines.append("\nA statement is a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\".")
+        lines.append(f"First, think step by step about the two statements to determine if they agree. Finally, give your assessment of the agreement on a scale of {self.agreement_prompt_settings['min']} for total disagreement to {self.agreement_prompt_settings['max']} for total agreement. " \
+                    f"The number {self.agreement_prompt_settings['neut']} is for unrelated statements (those which discuss different matters). Even if the sentiments of the statements are opposite: If they discuss different matters, the assessment should be {self.agreement_prompt_settings['neut']}. " \
+                    "Provide your assessment in the form of JSON such as {\"agreement\": your_number_goes_here}.")
 
-        # Remove enumeration at the start of the line
-        lines = [l[m.span()[-1]:] for (l, m) in matched]
-
-        # Strip lines
-        lines = [l.strip() for l in lines]
-        
-        return lines
+        prompt = "\n".join(lines)
+        return prompt
 
     def extract_statements(self, min_comments: int = 10):
         # Group comments by sentiment
@@ -116,7 +124,7 @@ class StatementsAnalyzer:
             # Construct the LLM prompt and summarize the comments
             prompt = self._build_prompt_extract_statements(sen_comments)
             res_raw = self._llm.chat(prompt)
-            res_lines = self._post_process_extract_statements(res_raw)
+            res_lines = post_process_extract_statements(res_raw)
             comment_statements[sen] = res_lines
         
         return comment_statements
