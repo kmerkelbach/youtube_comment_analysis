@@ -1,15 +1,16 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from collections import defaultdict
+import itertools
 
 
 from structures.comment import Comment
 from models.computations import ClassificationType
 from models.math_funcs import max_class
 from util.string_utils import truncate_line, post_process_extract_statements, post_process_single_entry_json
-from util.file_utils import named_dir
+from util.file_utils import named_dir, save_snippet
 from api.youtube_api import YoutubeAPI
 from models.llm_api import LLM
 
@@ -18,24 +19,32 @@ DOUBLE_NEWLINE = "\n\n"
 
 
 class StatementsAnalyzer:
-    def __init__(self, video_id: str, comments: List[Comment]) -> None:
+    def __init__(self, video_id: str, comments: List[Comment], agreement_prompt_magnitude: int = 5) -> None:
         self.video_id = video_id
         self._comments = comments
+
         self._youtube = YoutubeAPI()
+        self._video_title = self._youtube.get_title(self.video_id)
+
         self._llm = LLM()
 
         # Settings for prompt of agreement assessment
         self.agreement_prompt_settings = {
-            "min": -5,
+            "min": -agreement_prompt_magnitude,
             "neut": 0,
-            "max": 5
+            "max": agreement_prompt_magnitude
         }
+        self.voice_pos = "agree"
+        self.voice_neut = "neutral"
+        self.voice_neg = "disagree"
+        self.voices_nonneut = (self.voice_pos, self.voice_neg)
 
         # Store results of statement agreement assessment - I can later use these samples to train a cheaper model
-        self._data_dir = named_dir("agreements")
+        self._data_dir_name = "agreements"
 
-        # Grouped comments
+        # Cached results
         self._sentiment_groups = None
+        self._comment_statements = None
     
     def _group_comments(self):
         sentiment_groups = defaultdict(list)
@@ -80,9 +89,8 @@ class StatementsAnalyzer:
         return comm_lines
 
     def _build_prompt_extract_statements(self, comments: List[Comment]) -> str:
-        title = self._youtube.get_title(self.video_id)
         lines = [f"You are a professional YouTube comment analyst. Given a video title and some comments, extract statements from the comments."]
-        lines.append(f"Video title: {title}")
+        lines.append(f"Video title: {self._video_title}")
         
         lines.append("\nSample from the comments:")
         comm_lines = self._sample_from_comments(comments)
@@ -95,10 +103,9 @@ class StatementsAnalyzer:
         prompt = "\n".join(lines)
         return prompt
     
-    def build_prompt_do_statements_agree(self, statement_1: str, statement_2: str) -> str:
-        title = self._youtube.get_title(self.video_id)
+    def _build_prompt_do_statements_agree(self, statement_1: str, statement_2: str) -> str:
         lines = ["You are a professional YouTube video comment analyst. Given a video title and a statement (or a comment) about the video, decide if the statements two agree. Note that it may be possible for a statement or a comment to express the desire for change or to voice disagreement."]
-        lines.append(f"Video title: {title}")
+        lines.append(f"Video title: {self._video_title}")
         lines.append(f"Statement 1: {statement_1}")
         lines.append(f"Statement 2: {statement_2}")
 
@@ -110,7 +117,7 @@ class StatementsAnalyzer:
         prompt = "\n".join(lines)
         return prompt
 
-    def extract_statements(self, min_comments: int = 10):
+    def _extract_statements(self, min_comments: int = 10):
         # Group comments by sentiment
         self._group_comments()
 
@@ -128,3 +135,89 @@ class StatementsAnalyzer:
             comment_statements[sen] = res_lines
         
         return comment_statements
+    
+    def _do_statements_agree(self, statement_1, statement_2):
+        # Make prompt
+        prompt = self._build_prompt_do_statements_agree(statement_1, statement_2)
+
+        # Send prompt to LLM
+        res_raw = self._llm.chat(prompt)
+        rating = post_process_single_entry_json(res_raw)
+
+        # Save this snippet of information to a file
+        save_snippet(
+            {
+                "statement_1": statement_1,
+                "statement_2": statement_2,
+                "video_title": self._video_title,
+                "agreement_rating": rating
+            },
+            self._data_dir_name
+        )
+
+        return rating
+    
+    def _check_agreement_all(self, comments_topk: List[Comment]):
+        statement_scores = defaultdict(float)  # used to calculate a weighted score, e.g., 2.54 on a scale of -5 to 5
+        statement_voices = defaultdict(dict)  # used to calculate how many people talk about the statement and what
+        # their stand is
+
+        # Get total like count to normalize scores
+        total_likes = np.sum([comm.likes for comm in comments_topk])
+
+        statements = sum(self._comment_statements.values(), [])  # get all statements, regardless of kind
+        comparisons_all = list(itertools.product(statements, comments_topk))
+        for statement, comment in tqdm(comparisons_all, desc="Measuring statement agreement with comments ..."):
+            # Find out agreement between statement and comment
+            rating = self._do_statements_agree(
+                statement_1=statement,
+                statement_2=comment.text
+            )  # integer such as -5, -3, 0, 2, or 4 (from -5 to 5)
+
+            # With the raw rating, we calculate two things: (1) a like-weighted score and (2) a tally of agreement or disagreement
+
+            # Calculate agreement score = like-weighted rating
+            likes_weight = comment.likes / total_likes
+            score = rating * likes_weight
+
+            # Add measured score to the statement's score
+            statement_scores[statement] += score
+
+            # --- (1) is done, now we do (2)
+
+            # Find out the class of agreement: positive, neutral, disagreement
+            voice_class = self._get_voice_class(rating)
+
+            # So we can later measure how many people care about a topic and if they agree or disagree, add the comment's likes
+            # to a tally of "votes".
+            if voice_class not in statement_voices[statement]:
+                statement_voices[statement][voice_class] = 0
+            statement_voices[statement][voice_class] += likes_weight
+        
+        return statement_scores, statement_voices
+    
+    def _get_voice_class(self, agreement_rating: int):
+        return self.voice_pos if agreement_rating > 0 else (self.voice_neg if agreement_rating < 0 else self.voice_neut)
+    
+    def run_analysis(self, limit_statements: Optional[int] = None, comment_top_k: int = 50):
+        # Extract statements
+        self._comment_statements = self._extract_statements()
+
+        # Number of statements can be limited for testing
+        if limit_statements is not None:
+            self._comment_statements = {
+                kind: [statements[idx] for idx in np.random.choice(
+                    np.arange(len(statements)), size=min(len(statements), 2), replace=False
+                )]
+                for (kind, statements) in self._comment_statements.items()
+            }
+        
+        # Get the top k comments according to likes
+        comments_topk = sorted(self._comments, key=lambda comm: comm.likes, reverse=True)[:comment_top_k]
+
+        # Analyze their agreement to extracted statements
+        statement_scores, statement_voices = self._check_agreement_all(comment_top_k)
+
+        # TODO: Keep going with converting code from notebook into Python.
+        # TODO: WATCH OUT since I no longer need to do the division by likes (normalization) that is still in the notebook code
+        #  (since I have already done it in Python)
