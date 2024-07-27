@@ -15,6 +15,10 @@ from api.youtube_api import YoutubeAPI
 from models.llm_api import LLM
 
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 DOUBLE_NEWLINE = "\n\n"
 
 
@@ -136,13 +140,21 @@ class StatementsAnalyzer:
         
         return comment_statements
     
-    def _do_statements_agree(self, statement_1, statement_2):
+    def _do_statements_agree(self, statement_1: str, statement_2: str, trials=3):
         # Make prompt
         prompt = self._build_prompt_do_statements_agree(statement_1, statement_2)
 
         # Send prompt to LLM
-        res_raw = self._llm.chat(prompt)
-        rating = post_process_single_entry_json(res_raw)
+        for _ in range(trials):
+            res_raw = self._llm.chat(prompt)
+            rating = post_process_single_entry_json(res_raw)
+            if rating is not None:
+                break
+        
+        # If no rating could be extracted, mark the statements as being neutral
+        rating_raw = rating
+        if rating_raw is None:
+            rating = self.agreement_prompt_settings['neut']
 
         # Save this snippet of information to a file
         save_snippet(
@@ -150,6 +162,8 @@ class StatementsAnalyzer:
                 "statement_1": statement_1,
                 "statement_2": statement_2,
                 "video_title": self._video_title,
+                "respose_raw": res_raw,
+                "agreement_rating_raw": rating_raw,
                 "agreement_rating": rating
             },
             self._data_dir_name
@@ -216,8 +230,34 @@ class StatementsAnalyzer:
         comments_topk = sorted(self._comments, key=lambda comm: comm.likes, reverse=True)[:comment_top_k]
 
         # Analyze their agreement to extracted statements
-        statement_scores, statement_voices = self._check_agreement_all(comment_top_k)
+        statement_scores, statement_voices = self._check_agreement_all(comments_topk)
 
-        # TODO: Keep going with converting code from notebook into Python.
-        # TODO: WATCH OUT since I no longer need to do the division by likes (normalization) that is still in the notebook code
-        #  (since I have already done it in Python)
+        # Print statement scores
+        for statement, score in statement_scores.items():
+            logger.info(f"Score for statement '{statement}' -> {score:0.2f}")
+
+        # Print fraction of agreement, disagreement, neutrality
+        for statement, agree_info in statement_voices.items():
+            # Remove neutral voices (but remember them)
+            frac_neutral = agree_info.get(self.voice_neut, 0)
+            frac_engaged = 1 - frac_neutral
+
+            # Re-normalize fractions for other voices
+            if frac_neutral > 0:
+                prob_mass = sum(agree_info.get(opinion, 0) for opinion in self.voices_nonneut)
+                agree_info = {opinion: frac / prob_mass for (opinion, frac) in agree_info.items()}
+
+            # Sort opinions alphabetically and keep only non-neutral opinions
+            agree_info = sorted(agree_info.items(), key=lambda t: t[0])
+            agree_info = [(opinion, fraction) for (opinion, fraction) in agree_info if opinion in self.voices_nonneut]
+
+            # Format everything
+            statement_str = f"Statement '{statement}'"
+            if frac_engaged > 0:
+                engagement_str = f"{100 * frac_engaged:0.2f}% are discussing this, out of those "
+                opinion_str = ", ".join(f"{100 * fraction:0.0f}% {opinion}" for (opinion, fraction) in agree_info)
+                discussion_str = engagement_str + opinion_str
+            else:
+                discussion_str = "No comments (of those checked) are discussing this."
+            
+            logger.info(statement_str + f"->  " + discussion_str)

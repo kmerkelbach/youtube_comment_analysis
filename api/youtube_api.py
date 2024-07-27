@@ -13,6 +13,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# Disable httpx logging
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
 # Fields for navigating API responses
 field_npt = "nextPageToken"
 field_tlc = "topLevelComment"
@@ -31,10 +35,6 @@ field_channel_title = "channelTitle"
 field_stats = "statistics"
 field_cmmt_cnt = "commentCount"
 field_audio_lang = "defaultAudioLanguage"
-
-
-import logging
-logger = logging.getLogger(__name__)
 
 
 class YoutubeAPI:
