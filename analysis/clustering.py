@@ -5,7 +5,10 @@ import itertools
 from sklearn.cluster import KMeans, SpectralClustering, HDBSCAN
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_samples
-
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import umap.umap_ as umap
+from sklearn.manifold import TSNE
 
 from structures.comment import Comment, flatten_comments
 
@@ -104,6 +107,32 @@ class ClusteringAnalyzer:
         clustering = self._pick_clustering(clusterings)
 
         return clustering
+    
+    def plot_clustering(self, clustering: Clustering, use_umap=True):
+        # Prepare colormap for plotting
+        cm_steps = len(clustering.labels_unique)
+        hsv = mpl.colormaps.get_cmap('hsv')
+        cmap = mpl.colors.ListedColormap(hsv(np.linspace(0,1,cm_steps + 1)[:-1]))
+        
+        # Reduce the dimensionality of the clustered points (embedding vectors)
+        if use_umap:
+            # UMAP
+            reducer = umap.UMAP()
+        else:
+            # t-SNE
+            reducer = TSNE(
+                n_components=2,
+                learning_rate='auto',
+                init='random',
+                perplexity=3
+            )
+
+        # Fit
+        matrix_2d = reducer.fit_transform(self._get_emb_matrix())
+
+        # Plot
+        colors = [cmap.colors[clustering.labels_unique.index(lab)] for lab in clustering.labels]
+        plt.scatter(x=matrix_2d[:, 0], y=matrix_2d[:, 1], c=colors)
 
 
 def cluster_kmeans(matrix, n=5):
