@@ -40,3 +40,15 @@ class Comment:
 
     def __str__(self):
         return self.__repr__()
+
+
+def flatten_comments(comments: List[Comment]):
+    res = []
+    for comm in comments:
+        # Add comment itself
+        res.append(comm)
+
+        # Add its replies
+        res += flatten_comments(comm.replies)
+    
+    return res

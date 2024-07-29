@@ -4,25 +4,14 @@ import pandas as pd
 from tqdm import tqdm
 
 
-from structures.comment import Comment
+from structures.comment import Comment, flatten_comments
 from models.computations import ClassificationType
 
 
 class ClassificationAnalyzer:
     def __init__(self, comments: List[Comment]) -> None:
         self._comments_toplevel = comments
-        self._comments_flattened = self._flatten_comments(comments)
-
-    def _flatten_comments(self, comments: List[Comment]):
-        res = []
-        for comm in comments:
-            # Add comment itself
-            res.append(comm)
-
-            # Add its replies
-            res += self._flatten_comments(comm.replies)
-        
-        return res
+        self._comments_flattened = flatten_comments(comments)
     
     def _find_mean_classes(self, comments: List[Comment], classi_type: ClassificationType, take_argmax=False):
         res = []

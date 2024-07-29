@@ -13,6 +13,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# Disable sentence_transformers logging
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+
+
 class TextModelManager:
     # Make this a singleton
     def __new__(cls):
