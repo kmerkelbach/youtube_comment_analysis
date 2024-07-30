@@ -1,5 +1,8 @@
 from datetime import datetime
 from typing import List
+import numpy as np
+
+from util.string_utils import truncate_line
 from models.computations import ClassificationType
 from models.text_models import TextModelManager
 
@@ -52,3 +55,34 @@ def flatten_comments(comments: List[Comment]):
         res += flatten_comments(comm.replies)
     
     return res
+
+
+def sample_from_comments(comments: List[Comment], max_chars_per_comment: int = 200, max_comment_chars_shown: int = 2500) -> List[str]:
+    # Create a shuffled list of comment indices
+    indices = np.arange(len(comments))
+    np.random.shuffle(indices)
+
+    # Sample comments until we have enough characters
+    double_newline = "\n\n"
+    comm_lines = []
+    for idx in indices:
+
+        # Break if we have too many characters
+        if sum(len(l) for l in comm_lines) >= max_comment_chars_shown:
+            break
+
+        # Get comment text
+        text = comments[idx].text
+
+        # Remove extraneous newlines
+        while double_newline in text:
+            text = text.replace(double_newline, "\n")
+
+        # Truncate text if necessary
+        if len(text) > max_chars_per_comment:
+            text = truncate_line(text, max_chars_per_comment)
+
+        # Add the comment text
+        comm_lines.append(f"- \"{text}\"")
+    
+    return comm_lines

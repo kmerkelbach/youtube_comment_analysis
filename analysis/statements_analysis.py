@@ -6,20 +6,17 @@ from collections import defaultdict
 import itertools
 
 
-from structures.comment import Comment
+from structures.comment import Comment, sample_from_comments
 from models.computations import ClassificationType
 from models.math_funcs import max_class
-from util.string_utils import truncate_line, post_process_extract_statements, post_process_single_entry_json
-from util.file_utils import named_dir, save_snippet
+from util.string_utils import post_process_extract_statements, post_process_single_entry_json
+from util.file_utils import save_snippet
 from api.youtube_api import YoutubeAPI
 from models.llm_api import LLM
 
 
 import logging
 logger = logging.getLogger(__name__)
-
-
-DOUBLE_NEWLINE = "\n\n"
 
 
 class StatementsAnalyzer:
@@ -62,42 +59,13 @@ class StatementsAnalyzer:
         
         # Save groups
         self._sentiment_groups = sentiment_groups
-    
-    def _sample_from_comments(self, comments: List[Comment], max_chars_per_comment: int = 200, max_comment_chars_shown: int = 2500) -> List[str]:
-        # Create a shuffled list of comment indices
-        indices = np.arange(len(comments))
-        np.random.shuffle(indices)
-
-        # Sample comments until we have enough characters
-        comm_lines = []
-        for idx in indices:
-
-            # Break if we have too many characters
-            if sum(len(l) for l in comm_lines) >= max_comment_chars_shown:
-                break
-
-            # Get comment text
-            text = comments[idx].text
-
-            # Remove extraneous newlines
-            while DOUBLE_NEWLINE in text:
-                text = text.replace(DOUBLE_NEWLINE, "\n")
-
-            # Truncate text if necessary
-            if len(text) > max_chars_per_comment:
-                text = truncate_line(text, max_chars_per_comment)
-
-            # Add the comment text
-            comm_lines.append(f"- \"{text}\"")
-        
-        return comm_lines
 
     def _build_prompt_extract_statements(self, comments: List[Comment]) -> str:
         lines = [f"You are a professional YouTube comment analyst. Given a video title and some comments, extract statements from the comments."]
         lines.append(f"Video title: {self._video_title}")
         
         lines.append("\nSample from the comments:")
-        comm_lines = self._sample_from_comments(comments)
+        comm_lines = sample_from_comments(comments)
         lines += comm_lines
 
         lines.append("\nExtract 5 statements voiced in the comments. A statement should be a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\". Phrase each statement in a way it could be uttered by a viewer of the video. " \

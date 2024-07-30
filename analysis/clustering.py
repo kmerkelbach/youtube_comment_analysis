@@ -10,7 +10,10 @@ import matplotlib.pyplot as plt
 import umap.umap_ as umap
 from sklearn.manifold import TSNE
 
-from structures.comment import Comment, flatten_comments
+from structures.comment import Comment, flatten_comments, sample_from_comments
+from util.string_utils import post_process_single_entry_json
+from api.youtube_api import YoutubeAPI
+from models.llm_api import LLM
 
 
 import logging
@@ -18,17 +21,25 @@ logger = logging.getLogger(__name__)
 
 
 class Clustering:
-    def __init__(self, labels: np.ndarray, labels_unique: List[int], silhouette_by_label: Dict[int, float], clustering_function):
+    def __init__(self, labels: np.ndarray, labels_unique: List[int], silhouette_by_label: Dict[int, float], clustering_function=None, topics: Dict[int, str] = None):
         self.labels = labels
         self.labels_unique = labels_unique
         self.num_clusters = len(self.labels_unique)
         self.silhouette_by_label = silhouette_by_label
         self.silhouette_coef = np.mean(list(silhouette_by_label.values()))
         self.clustering_function = clustering_function
+        self.topics = topics
 
 
 class ClusteringAnalyzer:
-    def __init__(self, comments: List[Comment]) -> None:
+    def __init__(self, video_id: str, comments: List[Comment]) -> None:
+        self.video_id = video_id
+
+        self._youtube = YoutubeAPI()
+        self._video_title = self._youtube.get_title(self.video_id)
+
+        self._llm = LLM()
+
         self._comments = flatten_comments(comments)
         self._emb_matrix = None
 
@@ -106,6 +117,9 @@ class ClusteringAnalyzer:
         # Pick a clustering
         clustering = self._pick_clustering(clusterings)
 
+        # Find topics of each cluster
+        self._find_cluster_topics(clustering)
+
         return clustering
     
     def plot_clustering(self, clustering: Clustering, use_umap=True):
@@ -133,6 +147,46 @@ class ClusteringAnalyzer:
         # Plot
         colors = [cmap.colors[clustering.labels_unique.index(lab)] for lab in clustering.labels]
         plt.scatter(x=matrix_2d[:, 0], y=matrix_2d[:, 1], c=colors)
+
+    def _build_prompt_find_topic(self, comments: List[Comment]):
+        lines = [f"You are a professional YouTube comment analyst. Given a video title and some comments," \
+                 " find the topic of the comments."]
+        lines.append(f"Video title: {self._video_title}")
+        
+        lines.append("\nSample from the comments:")
+        comm_lines = sample_from_comments(comments)
+        lines += comm_lines
+
+        lines.append("\nExtract a single, coherent topic that these comments are discussing. The topic you find can also" \
+                     " be about the style or mood of the comments. " \
+                    "A topic should be a simple notion, e.g., \"Jokes\" or \"Choosing a keyboard\"." \
+                    "There is no need to repeat the video title in your assessment. The topic should also describe what the" \
+                    " comments are saying, so it shouldn't be, e.g., \"Reactions to Video\" or anything generic of that sort." \
+                    " Provide your assessment in the form of JSON such as {\"topic\": your_topic_goes_here}.")
+
+        prompt = "\n".join(lines)
+        return prompt
+
+    def _find_cluster_topics(self, clustering: Clustering):
+        matrix = self._get_emb_matrix()
+        topics = {}
+        for label in tqdm(clustering.labels_unique, desc="Find cluster topics ..."):
+            # Get indices
+            clus_indices = np.where(clustering.labels == label)[0]
+
+            # Find mean embedding of cluster
+            clus_mean_emb = np.mean(np.stack([matrix[idx] for idx in clus_indices]), axis=0)
+
+            # Sort comments by their distance to the mean embedding of the cluster
+            clus_comments = [self._comments[idx] for idx in clus_indices]
+            clus_comments.sort(key=lambda comment: np.sum(np.abs(comment.get_embedding()) - clus_mean_emb))
+
+            # Determine a central comment topic using the LLM
+            clus_comments_central = clus_comments[:1000]
+            prompt = self._build_prompt_find_topic(clus_comments_central)
+            res_raw = self._llm.chat(prompt)
+            topics[int(label)] = post_process_single_entry_json(res_raw)
+        clustering.topics = topics
 
 
 def cluster_kmeans(matrix, n=5):
