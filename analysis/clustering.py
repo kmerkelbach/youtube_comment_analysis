@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from tqdm import tqdm
 import numpy as np
 import itertools
@@ -12,7 +12,9 @@ from sklearn.manifold import TSNE
 
 from structures.comment import Comment, flatten_comments, sample_from_comments
 from util.string_utils import post_process_single_entry_json
+from models.math_funcs import cos_sim
 from api.youtube_api import YoutubeAPI
+from models.text_models import TextModelManager
 from models.llm_api import LLM
 
 
@@ -39,6 +41,8 @@ class ClusteringAnalyzer:
         self._video_title = self._youtube.get_title(self.video_id)
 
         self._llm = LLM()
+
+        self._text_model_manager = TextModelManager()
 
         self._comments = flatten_comments(comments)
         self._emb_matrix = None
@@ -120,6 +124,9 @@ class ClusteringAnalyzer:
         # Find topics of each cluster
         self._find_cluster_topics(clustering)
 
+        # Fuse clusters by topic
+        self._fuse_clusters_by_topic(clustering)
+
         return clustering
     
     def plot_clustering(self, clustering: Clustering, use_umap=True):
@@ -148,6 +155,86 @@ class ClusteringAnalyzer:
         colors = [cmap.colors[clustering.labels_unique.index(lab)] for lab in clustering.labels]
         plt.scatter(x=matrix_2d[:, 0], y=matrix_2d[:, 1], c=colors)
 
+    def _fuse_clusters_embedding_sim(self, clustering_topics: Dict[int, str]) -> List[Tuple[int, str]]:
+        cluster_groups = [[]]
+
+        # Fuse clusters into groups based on embedding similarity of the topic
+        embed = self._text_model_manager.embed
+        for lab, topic in clustering_topics.items():
+            # Store this cluster label and topic as a tuple
+            tup = (lab, topic)
+            
+            # Try to find a spot for this topic in one of the groups
+            found_group = False
+            for group in cluster_groups:
+
+                # If the group is empty, add the cluster (this only happens at the beginning)
+                if len(group) == 0:
+                    group.append(tup)
+                    found_group = True
+                    break
+
+                # Compare this cluster's embedding with the group
+                mean_sim = np.mean([cos_sim(embed(top), embed(topic)) for (l, top) in group])
+                if mean_sim > 0.55:
+                    group.append(tup)
+                    found_group = True
+                    break
+
+            # If we already found a group, go on to the next cluster's topic
+            if found_group:
+                continue
+
+            # Start a new group
+            cluster_groups.append([tup])
+        
+        return cluster_groups
+    
+    def _synthesize_fused_topic_names(self, cluster_groups: List[Tuple[int, str]]) -> List[Tuple[List[int], str]]:
+        fused_groups = []
+        for group in tqdm(cluster_groups, desc="Fusing groups ..."):
+            labs, topics = zip(*group)
+
+            if len(topics) > 1:
+                prompt = self._build_prompt_fuse_topics(topics)
+                res_raw = self._llm.chat(prompt)
+                topic = post_process_single_entry_json(res_raw)
+            else:
+                topic = topics[0]
+
+            fused_groups.append((labs, topic))
+        
+        return fused_groups
+    
+    def _reassign_grouped_clusters(self, clustering: Clustering, fused_groups: List[Tuple[List[int], str]]) -> None:
+        clustering.topics = {}  # reset topics dictionary - we will fill it with the new topics
+        for label_group, topic in fused_groups:
+            # No need to change any labels if the "group" doesn't have multiple labels
+            if len(label_group) <= 1:
+                continue
+
+            # Paint all labels in group to match the first label
+            label_group = list(label_group)
+            lab_first = label_group.pop(0)
+            for lab in label_group:
+                clustering.labels[np.where(clustering.labels == lab)] = lab_first
+
+            # Save new topic in dictionary
+            clustering.topics[lab_first] = topic
+
+            # Update unique labels
+            clustering.labels_unique = list(np.unique(clustering.labels))
+
+    def _fuse_clusters_by_topic(self, clustering: Clustering) -> None:
+        # Fuse based on embedding distance/similarity of topics
+        cluster_groups = self._fuse_clusters_embedding_sim(clustering.topics)
+        
+        # Give fused groups new names
+        fused_groups = self._synthesize_fused_topic_names(cluster_groups)
+        
+        # Change labeling of clustering to reflect group fusions
+        self._reassign_grouped_clusters(clustering, fused_groups)
+
     def _build_prompt_find_topic(self, comments: List[Comment]):
         lines = [f"You are a professional YouTube comment analyst. Given a video title and some comments," \
                  " find the topic of the comments."]
@@ -163,6 +250,24 @@ class ClusteringAnalyzer:
                     "There is no need to repeat the video title in your assessment. The topic should also describe what the" \
                     " comments are saying, so it shouldn't be, e.g., \"Reactions to Video\" or anything generic of that sort." \
                     " Provide your assessment in the form of JSON such as {\"topic\": your_topic_goes_here}.")
+
+        prompt = "\n".join(lines)
+        return prompt
+    
+    def _build_prompt_fuse_topics(self, topics: List[str]):
+        lines = [f"You are a professional YouTube comment analyst. Given a video title and some comment topics," \
+                 " find a new description of the topic that reflects the core concept of the listed topics."]
+        lines.append(f"Video title: {self._video_title}")
+        
+        lines.append("\nComment topics:")
+        lines += [f"- {t}" for t in topics]
+
+        lines.append("\nExtract a single, coherent topic that describes all these topics. The topic you find can also" \
+                     " be about the style or mood of the comments. " \
+                    "A topic should be a simple notion, e.g., \"Jokes\" or \"Choosing a keyboard\"." \
+                    "There is no need to repeat the video title in your assessment. The topic shouldn't be," \
+                        " e.g., \"Reactions to Video\" or anything generic of that sort. Provide your assessment" \
+                            " in the form of JSON such as {\"topic\": your_topic_goes_here}.")
 
         prompt = "\n".join(lines)
         return prompt
