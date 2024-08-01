@@ -47,6 +47,8 @@ class ClusteringAnalyzer:
         self._comments = flatten_comments(comments)
         self._emb_matrix = None
 
+        self._clustering = None
+
     def _get_emb_matrix(self):
         if self._emb_matrix is None:
             emb_vecs = []
@@ -119,15 +121,17 @@ class ClusteringAnalyzer:
         clusterings = self._generate_clusterings()
 
         # Pick a clustering
-        clustering = self._pick_clustering(clusterings)
+        self._clustering = self._pick_clustering(clusterings)
 
         # Find topics of each cluster
-        self._find_cluster_topics(clustering)
+        self._find_cluster_topics()
 
         # Fuse clusters by topic
-        self._fuse_clusters_by_topic(clustering)
+        self._fuse_clusters_by_topic()
 
-        return clustering
+    def describe_clusters():
+        pass
+
     
     def plot_clustering(self, clustering: Clustering, use_umap=True):
         # Prepare colormap for plotting
@@ -206,7 +210,8 @@ class ClusteringAnalyzer:
         
         return fused_groups
     
-    def _reassign_grouped_clusters(self, clustering: Clustering, fused_groups: List[Tuple[List[int], str]]) -> None:
+    def _reassign_grouped_clusters(self, fused_groups: List[Tuple[List[int], str]]) -> None:
+        clustering = self._clustering
         clustering.topics = {}  # reset topics dictionary - we will fill it with the new topics
         for label_group, topic in fused_groups:
             # No need to change any labels if the "group" doesn't have multiple labels
@@ -225,15 +230,15 @@ class ClusteringAnalyzer:
             # Update unique labels
             clustering.labels_unique = list(np.unique(clustering.labels))
 
-    def _fuse_clusters_by_topic(self, clustering: Clustering) -> None:
+    def _fuse_clusters_by_topic(self) -> None:
         # Fuse based on embedding distance/similarity of topics
-        cluster_groups = self._fuse_clusters_embedding_sim(clustering.topics)
+        cluster_groups = self._fuse_clusters_embedding_sim(self._clustering.topics)
         
         # Give fused groups new names
         fused_groups = self._synthesize_fused_topic_names(cluster_groups)
         
         # Change labeling of clustering to reflect group fusions
-        self._reassign_grouped_clusters(clustering, fused_groups)
+        self._reassign_grouped_clusters(fused_groups)
 
     def _build_prompt_find_topic(self, comments: List[Comment]):
         lines = [f"You are a professional YouTube comment analyst. Given a video title and some comments," \
@@ -272,12 +277,12 @@ class ClusteringAnalyzer:
         prompt = "\n".join(lines)
         return prompt
 
-    def _find_cluster_topics(self, clustering: Clustering):
+    def _find_cluster_topics(self):
         matrix = self._get_emb_matrix()
         topics = {}
-        for label in tqdm(clustering.labels_unique, desc="Find cluster topics ..."):
+        for label in tqdm(self._clustering.labels_unique, desc="Find cluster topics ..."):
             # Get indices
-            clus_indices = np.where(clustering.labels == label)[0]
+            clus_indices = np.where(self._clustering.labels == label)[0]
 
             # Find mean embedding of cluster
             clus_mean_emb = np.mean(np.stack([matrix[idx] for idx in clus_indices]), axis=0)
@@ -291,7 +296,7 @@ class ClusteringAnalyzer:
             prompt = self._build_prompt_find_topic(clus_comments_central)
             res_raw = self._llm.chat(prompt)
             topics[int(label)] = post_process_single_entry_json(res_raw)
-        clustering.topics = topics
+        self._clustering.topics = topics
 
 
 def cluster_kmeans(matrix, n=5):
