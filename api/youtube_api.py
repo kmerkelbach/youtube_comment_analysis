@@ -66,6 +66,9 @@ class YoutubeAPI:
     def reset_current_video(self):
         self._current_video_id = None
 
+    def get_current_video(self):
+        return self._current_video_id
+
     def _get_video_id(self, video_id_user_provided: Optional[str]) -> str:
         ids = [video_id_user_provided, self._current_video_id]
 
