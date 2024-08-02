@@ -211,7 +211,7 @@ class StatementsAnalyzer:
             frac_engaged = 1 - frac_neutral
 
             # Re-normalize fractions for other voices
-            if frac_neutral > 0:
+            if frac_neutral > 0 and frac_engaged > 0:
                 prob_mass = sum(agree_info.get(opinion, 0) for opinion in self.voices_nonneut)
                 agree_info = {opinion: frac / prob_mass for (opinion, frac) in agree_info.items()}
 
