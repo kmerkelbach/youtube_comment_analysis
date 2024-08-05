@@ -10,18 +10,21 @@ logger = logging.getLogger(__name__)
 class LLM:
     # Make this a singleton
     def __new__(cls):
-        if not hasattr(cls, "instance"):
+        if not hasattr(cls, "_instance"):
             logger.info("Instantiating LLM.")
-            cls.instance = super(LLM, cls).__new__(cls)
-        return cls.instance
+            cls._instance = super(LLM, cls).__new__(cls)
+        return cls._instance
 
     def __init__(self) -> None:
-        # Set up client
-        self._client = Fireworks(api_key=os.getenv("FIREWORKSAI_KEY"))
+        if not hasattr(self, '_initialized'):
+            self._initialized = True
+            
+            # Set up client
+            self._client = Fireworks(api_key=os.getenv("FIREWORKSAI_KEY"))
 
-        # Settings
-        self.timeout = 5
-        self.num_retries = 2
+            # Settings
+            self.timeout = 5
+            self.num_retries = 2
 
     def _send_prompt(self, prompt):
         chat_completion = self._client.chat.completions.create(

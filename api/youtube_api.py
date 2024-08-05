@@ -40,25 +40,28 @@ field_audio_lang = "defaultAudioLanguage"
 class YoutubeAPI:
     # Make this a singleton
     def __new__(cls):
-        if not hasattr(cls, "instance"):
+        if not hasattr(cls, "_instance"):
             logger.info("Instantiating YoutubeAPI.")
-            cls.instance = super(YoutubeAPI, cls).__new__(cls)
-        return cls.instance
+            cls._instance = super(YoutubeAPI, cls).__new__(cls)
+        return cls._instance
 
     def __init__(self) -> None:
-        # Set up client
-        api_key = os.getenv("YOUTUBE_API_KEY")
-        self._client = googleapiclient.discovery.build(
-            "youtube",
-            "v3",
-            developerKey=api_key
-        )
+        if not hasattr(self, '_initialized'):
+            self._initialized = True
 
-        # Allow user to select a video ID
-        self._current_video_id = None
+            # Set up client
+            api_key = os.getenv("YOUTUBE_API_KEY")
+            self._client = googleapiclient.discovery.build(
+                "youtube",
+                "v3",
+                developerKey=api_key
+            )
 
-        # Cache video info
-        self._video_info = {}
+            # Allow user to select a video ID
+            self._current_video_id = None
+
+            # Cache video info
+            self._video_info = {}
 
     def set_current_video(self, video_id: str):
         self._current_video_id = video_id

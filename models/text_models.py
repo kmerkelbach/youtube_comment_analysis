@@ -20,22 +20,25 @@ logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 class TextModelManager:
     # Make this a singleton
     def __new__(cls):
-        if not hasattr(cls, "instance"):
+        if not hasattr(cls, "_instance"):
             logger.info("Instantiating TextModelManager.")
-            cls.instance = super(TextModelManager, cls).__new__(cls)
-        return cls.instance
+            cls._instance = super(TextModelManager, cls).__new__(cls)
+        return cls._instance
 
     def __init__(self):
-        # Cache instanced classification models and functions
-        self._models = {}
-        self._classi_funs = {}
+        if not hasattr(self, '_initialized'):
+            self._initialized = True
 
-        # Set up torch
-        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+            # Cache instanced classification models and functions
+            self._models = {}
+            self._classi_funs = {}
 
-        # Embedding model
-        self._embedding_model = None
-        self._emb_cache = {}
+            # Set up torch
+            self._device = "cuda" if torch.cuda.is_available() else "cpu"
+
+            # Embedding model
+            self._embedding_model = None
+            self._emb_cache = {}
 
     def _get_function(self, classi_type: ClassificationType):
         # Load model if necessary

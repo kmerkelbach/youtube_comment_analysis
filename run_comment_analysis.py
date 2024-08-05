@@ -80,6 +80,6 @@ class AnalysisRunner:
         )
 
 
-if __name__ == "__name__":
+if __name__ == "__main__":
     runner = AnalysisRunner()
     runner.run_all_analyses()
