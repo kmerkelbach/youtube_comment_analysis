@@ -13,7 +13,8 @@ from api.youtube_api import YoutubeAPI
 from analysis.classification_analysis import ClassificationAnalyzer
 from analysis.statements_analysis import StatementsAnalyzer
 from analysis.clustering import ClusteringAnalyzer
-from util.file_utils import named_dir, save_json
+from util.file_utils import named_dir
+from structures.report import Report
 
 
 # Logging
@@ -43,11 +44,9 @@ class AnalysisRunner:
         self.comments = self.youtube.get_comments()
 
         # Start empty report
-        self._report = {}
-        self._report_meta = {
-            'video_id': self.yt_video_id,
-            'time_started': datetime.now().isoformat()
-        }
+        self._report = Report(
+            video_id=self.yt_video_id
+        )
 
     def youtube_setup(self, yt_video_id: str):
         self.youtube.set_current_video(yt_video_id)
@@ -70,46 +69,18 @@ class AnalysisRunner:
 
         yt_video_id = yt_video_test_id_25_comments
         return yt_video_id
-
-    def _construct_file_path(self):
-        return os.path.join(
-            named_dir("analyses"),
-            f"{self.yt_video_id}_text_data.json"
-        )
-    
-    def _add_to_report(self, name, data, data_field_name="data"):
-        if data_field_name not in self._report:
-            self._report[data_field_name] = {}
-        r = self._report[data_field_name]
-
-        if name not in r:
-            r[name] = []
-        l = r[name]
-
-        l.append(data)
-    
-    def _save_report(self):
-        # Add time to report
-        self._report_meta['time_finished'] = datetime.now().isoformat()
-
-        self._report['meta'] = self._report_meta
-        
-        save_json(
-            file_path=self._construct_file_path(),
-            data=self._report
-        )
     
     def run_all_analyses(self):
         # Classification Analysis
         classification_analyzer = ClassificationAnalyzer(self.comments)
         class_res = classification_analyzer.run_all_analyses()
-        self._add_to_report('classification', class_res)
+        self._report.res_classification = class_res
 
         # Clustering
         clustering_analyzer = ClusteringAnalyzer(video_id=self.yt_video_id, comments=self.comments)
         clustering_analyzer.cluster()
         clus_res = clustering_analyzer.describe_clusters()
-        self._add_to_report('clustering', clus_res)
+        self._report.res_clustering = clus_res
 
         # LLM Statement Extraction
         statements_analyzer = StatementsAnalyzer(
@@ -121,10 +92,10 @@ class AnalysisRunner:
             limit_statements=2,  # For testing, limit number of statements
             comment_top_k=2  # reduced count for testing
         )
-        self._add_to_report('statements', statement_res)
+        self._report.res_statements = statement_res
 
         # Save report
-        self._save_report()
+        self._report.save_to_disk()
 
 
 if __name__ == "__main__":
