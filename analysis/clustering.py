@@ -130,16 +130,17 @@ class ClusteringAnalyzer:
         self._fuse_clusters_by_topic()
 
     def describe_clusters(self, show_random_comments: bool = False, divider_width: int = 80, divider_str: str = "-"):
+        res = []
         for lab in self._clustering.labels_unique:
-            logger.info(f"Cluster Description (Label {lab})".center(divider_width, divider_str))
+            res.append(f"Cluster Description (Label {lab})".center(divider_width, divider_str))
 
             # Topic
-            logger.info(f"- Topic: {self._clustering.topics[lab]}")
+            res.append(f"- Topic: {self._clustering.topics[lab]}")
 
             # Size
             labels = self._clustering.labels
             cluster_size = sum(labels == lab)
-            logger.info(f"- Cluster size: {cluster_size} ({100 * cluster_size / len(labels):0.2f}%)")
+            res.append(f"- Cluster size: {cluster_size} ({100 * cluster_size / len(labels):0.2f}%)")
 
             # Get indices
             clus_indices = np.where(labels == lab)[0]
@@ -147,15 +148,17 @@ class ClusteringAnalyzer:
             # Show random comments
             if show_random_comments:
                 rnd_indices = np.random.choice(clus_indices, size=min(2, cluster_size), replace=False)
-                logger.info("")
-                logger.info(f"- {len(rnd_indices)} random comments from this cluster: ")
+                res.append("")
+                res.append(f"- {len(rnd_indices)} random comments from this cluster: ")
                 for idx in rnd_indices:
-                    logger.info(divider_str * (divider_width // 2))
-                    logger.info(f"- {self._comments[idx]}")
+                    res.append(divider_str * (divider_width // 2))
+                    res.append(f"- {self._comments[idx]}")
 
-            logger.info("".center(divider_width, divider_str))
+            res.append("".center(divider_width, divider_str))
 
-            logger.info("")
+            res.append("")
+        
+        return "\n".join(res)
 
     def plot_clustering(self, clustering: Clustering, use_umap=True):
         # Prepare colormap for plotting

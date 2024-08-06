@@ -182,6 +182,8 @@ class StatementsAnalyzer:
         return self.voice_pos if agreement_rating > 0 else (self.voice_neg if agreement_rating < 0 else self.voice_neut)
     
     def run_analysis(self, limit_statements: Optional[int] = None, comment_top_k: int = 50):
+        res = []
+
         # Extract statements
         self._comment_statements = self._extract_statements()
 
@@ -202,7 +204,7 @@ class StatementsAnalyzer:
 
         # Print statement scores
         for statement, score in statement_scores.items():
-            logger.info(f"Score for statement '{statement}' -> {score:0.2f}")
+            res.append(f"Score for statement '{statement}' -> {score:0.2f}")
 
         # Print fraction of agreement, disagreement, neutrality
         for statement, agree_info in statement_voices.items():
@@ -228,4 +230,6 @@ class StatementsAnalyzer:
             else:
                 discussion_str = "No comments (of those checked) are discussing this."
             
-            logger.info(statement_str + f"->  " + discussion_str)
+            res.append(statement_str + f"->  " + discussion_str)
+
+        return "\n".join(res)

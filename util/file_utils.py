@@ -1,7 +1,12 @@
 import os
 from typing import List, Dict
+import json
 import pandas as pd
 from glob import glob
+
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 def get_root_dir():
@@ -61,3 +66,23 @@ def save_snippet(sni: dict, name: str, max_entries_per_file: int = 1000):
     # Save file
     filename = f"{name}_{file_id:06d}.csv"
     df.to_csv(os.path.join(directory, filename), index=False)
+
+
+def load_json(file_path):
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as file:
+                return json.load(file)
+    except (IOError, json.JSONDecodeError) as e:
+        logger.error(f"Error reading JSON from {file_path}: {e}")
+    return None
+
+
+def save_json(file_path, data):
+    try:
+        with open(file_path, 'w') as file:
+            json.dump(data, file, indent=4)
+            return True
+    except IOError as e:
+        logger.error(f"Error writing JSON to {file_path}: {e}")
+    return False
