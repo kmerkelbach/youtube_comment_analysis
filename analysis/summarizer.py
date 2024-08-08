@@ -32,7 +32,6 @@ class ReportSummarizer:
 
     def _create_summary(self):
         g = 14
-        # TODO: Save information in a more structured manner into report - e.g., it's really hard to find the % of positive and negative comments
         # TODO: Collect important information from the raw results
         # TODO: Put all of it into a prompt
         # TODO: Create a summary using the LLM

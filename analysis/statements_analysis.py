@@ -182,7 +182,7 @@ class StatementsAnalyzer:
         return self.voice_pos if agreement_rating > 0 else (self.voice_neg if agreement_rating < 0 else self.voice_neut)
     
     def run_analysis(self, limit_statements: Optional[int] = None, comment_top_k: int = 50):
-        res = []
+        res = {}
 
         # Extract statements
         self._comment_statements = self._extract_statements()
@@ -202,11 +202,19 @@ class StatementsAnalyzer:
         # Analyze their agreement to extracted statements
         statement_scores, statement_voices = self._check_agreement_all(comments_topk)
 
-        # Print statement scores
-        for statement, score in statement_scores.items():
-            res.append(f"Score for statement '{statement}' -> {score:0.2f}")
+        # Save statement scores and rules of rating system
+        res['scores'] = statement_scores
+        res['rules'] = {
+            'prompt_ranges': self.agreement_prompt_settings,
+            'terms': {
+                "min": self.voice_neg,
+                "neut": self.voice_neut,
+                "max": self.voice_pos
+            }
+        }
 
-        # Print fraction of agreement, disagreement, neutrality
+        # Gather fraction of agreement, disagreement, neutrality
+        r = res["voices"] = {}
         for statement, agree_info in statement_voices.items():
             # Remove neutral voices (but remember them)
             frac_neutral = agree_info.get(self.voice_neut, 0)
@@ -221,15 +229,13 @@ class StatementsAnalyzer:
             agree_info = sorted(agree_info.items(), key=lambda t: t[0])
             agree_info = [(opinion, fraction) for (opinion, fraction) in agree_info if opinion in self.voices_nonneut]
 
-            # Format everything
-            statement_str = f"Statement '{statement}'"
+            # Gather result
+            voice_result = {
+                'frac_engaged': frac_engaged
+            }
             if frac_engaged > 0:
-                engagement_str = f"{100 * frac_engaged:0.2f}% are discussing this, out of those "
-                opinion_str = ", ".join(f"{100 * fraction:0.0f}% {opinion}" for (opinion, fraction) in agree_info)
-                discussion_str = engagement_str + opinion_str
-            else:
-                discussion_str = "No comments (of those checked) are discussing this."
+                voice_result['opinions'] = {opinion: fraction for (opinion, fraction) in agree_info}
             
-            res.append(statement_str + f"->  " + discussion_str)
+            r[statement] = voice_result
 
-        return "\n".join(res)
+        return res

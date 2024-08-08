@@ -77,23 +77,10 @@ class AnalysisRunner:
         clus_res = clustering_analyzer.describe_clusters()
         self._report.res_clustering = clus_res
 
-        # Summarize report TODO: Remove later, jut for testing
-        summarizer = ReportSummarizer(
-            video_id=self.yt_video_id,
-            comments=self.comments,
-            report=self._report
-        )
-        summarizer.summarize()
-
-
-
-        
-
         # Classification Analysis
         classification_analyzer = ClassificationAnalyzer(self.comments)
         class_res = classification_analyzer.run_all_analyses()
         self._report.res_classification = class_res
-
 
         # LLM Statement Extraction
         statements_analyzer = StatementsAnalyzer(
