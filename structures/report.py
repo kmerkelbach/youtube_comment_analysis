@@ -18,6 +18,9 @@ class Report:
         self.res_clustering = None
         self.res_statements = None
 
+        # Summary
+        self.summary = None
+
     def _construct_file_path(self):
         return os.path.join(
             named_dir("reports"),
@@ -38,7 +41,8 @@ class Report:
                 "classification": self.res_classification,
                 "clustering": self.res_clustering,
                 "statements": self.res_statements
-            }
+            },
+            "summary": self.summary
         }
         
         save_json(

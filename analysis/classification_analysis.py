@@ -1,6 +1,5 @@
-from typing import List
+from typing import List, Dict
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 
 
@@ -55,40 +54,36 @@ class ClassificationAnalyzer:
 
         return stats
 
-    def mean_classification_analysis(self, comments: List[Comment], classi_type: ClassificationType) -> str:
-        out_lines = []
+    def mean_classification_analysis(self, comments: List[Comment], classi_type: ClassificationType) -> Dict:
+        res = {}
 
-        for argmax_label, argmax_bool in [("Soft", False), ("Hard", True)]:
-            mean_clss = self._find_mean_classes(comments, classi_type, take_argmax=argmax_bool)
+        for argmax_label, argmax_bool in [("soft", False), ("hard", True)]:
+            res[argmax_label] = self._find_mean_classes(comments, classi_type, take_argmax=argmax_bool)
         
-            out_lines.append(f"({argmax_label}) Mean {classi_type.name} for {len(comments)} comments:")
-            for cl, mc in mean_clss.items():
-                out_lines.append(f"{cl}:".ljust(20) + f"{100 * mc:0.2f}%".rjust(6))
-        
-        return "\n".join(out_lines)
+        return res
     
-    def show_extreme_class_examples(self, classi_type: ClassificationType, num_shown : int = 10) -> str:
-        out_lines = []
+    def show_extreme_class_examples(self, classi_type: ClassificationType, num_shown : int = 10) -> Dict:
+        res = {'num_shown': num_shown}
 
+        r = res['res'] = {}
         for cl in self._comments_flattened[0].get_classification(classi_type).keys():
-            out_lines.append(f"{num_shown} most {cl} comments: ")
-            out_lines += [
+            r[cl] = [
                 str(comm) for comm in
                 sorted(
                     self._comments_flattened,
                     key=lambda comm: comm.get_classification(classi_type)[cl], reverse=True
                 )[:num_shown]
             ]
-            out_lines.append("")
 
-        return "\n".join(out_lines)
+        return res
     
     @staticmethod
     def _classes_to_arr(comm: Comment, classi_type: ClassificationType):
         return np.array(list(comm.get_classification(classi_type).values()))
     
-    def class_disagreement_in_replies(self, classi_type: ClassificationType) -> pd.DataFrame:
-        df_rows = []
+    def class_disagreement_in_replies(self, classi_type: ClassificationType, num_rows_output: int = 100) -> List:
+        # Gather data
+        rows = []
         for comm in self._comments_toplevel:
             # Skip if there are no replies
             if len(comm.replies) == 0:
@@ -100,38 +95,40 @@ class ClassificationAnalyzer:
             # Find out sum of differences between sentiment of comment and reply
             diffs = np.sum(np.power(np.abs(self._classes_to_arr(comm, classi_type) - self._classes_to_arr(repl, classi_type)), 2))
             
-            df_rows.append({"comment": comm.text, "reply": repl.text, "difference": diffs})
+            rows.append({"comment": comm.text, "reply": repl.text, "difference": diffs})
         
-        df = pd.DataFrame(df_rows)
-        df = df.sort_values(by="difference", ascending=False)
-        return df
+        # Sort rows by difference - highest first
+        rows.sort(key=lambda entry: entry["difference"], reverse=True)
+
+        # Limit output rows
+        if num_rows_output is not None:
+            rows = rows[:num_rows_output]
+
+        return rows
     
-    def classification_analysis(self, classi_type: ClassificationType) -> str:
-        out_lines = []
+    def classification_analysis(self, classi_type: ClassificationType) -> Dict:
+        res = {}
 
         # Mean classes
+        r = res['mean'] = {}
         for comment_label, comment_list in [("top-level", self._comments_toplevel), ("all", self._comments_flattened)]:
-            out_lines.append(f"Classification ({classi_type.name}) analysis for {comment_label} comments:")
-            out_lines.append(self.mean_classification_analysis(comment_list, classi_type))
-            out_lines.append("")
+            r[comment_label] = self.mean_classification_analysis(comment_list, classi_type)
         
         # Extreme examples
-        out_lines.append(self.show_extreme_class_examples(classi_type))
+        res['extreme'] = self.show_extreme_class_examples(classi_type)
 
         # Disagreement in replies
-        out_lines.append(f"Disagreement in replies for {classi_type.name} classes:")
-        df = self.class_disagreement_in_replies(classi_type).iloc[:15]
-        out_lines.append(df.to_markdown())
+        res['disagreement'] = self.class_disagreement_in_replies(classi_type)
 
-        out_str = "\n".join(out_lines)
-        return out_str
+        return res
     
-    def run_all_analyses(self):
-        out_lines = []
+    def run_all_analyses(self) -> Dict:
+        res = {}
 
-        out_lines.append("All results are weighted by comment likes.")
+        res['info'] = "All results are weighted by comment likes."
+
+        r = res['res'] = {}
         for classi_type in ClassificationType:
-            out_lines.append(self.classification_analysis(classi_type))
-            out_lines.append("")
+            r[classi_type.name] = self.classification_analysis(classi_type)
 
-        return "\n".join(out_lines)
+        return res

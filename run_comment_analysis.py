@@ -13,7 +13,7 @@ from api.youtube_api import YoutubeAPI
 from analysis.classification_analysis import ClassificationAnalyzer
 from analysis.statements_analysis import StatementsAnalyzer
 from analysis.clustering import ClusteringAnalyzer
-from util.file_utils import named_dir
+from analysis.summarizer import ReportSummarizer
 from structures.report import Report
 
 
@@ -75,6 +75,21 @@ class AnalysisRunner:
         classification_analyzer = ClassificationAnalyzer(self.comments)
         class_res = classification_analyzer.run_all_analyses()
         self._report.res_classification = class_res
+        
+
+
+        # Summarize report TODO: Remove later, jut for testing
+        summarizer = ReportSummarizer(
+            video_id=self.yt_video_id,
+            comments=self.comments,
+            report=self._report
+        )
+        summarizer.summarize()
+
+
+
+
+
 
         # Clustering
         clustering_analyzer = ClusteringAnalyzer(video_id=self.yt_video_id, comments=self.comments)
@@ -93,6 +108,14 @@ class AnalysisRunner:
             comment_top_k=2  # reduced count for testing
         )
         self._report.res_statements = statement_res
+
+        # Summarize report
+        summarizer = ReportSummarizer(
+            video_id=self.yt_video_id,
+            comments=self.comments,
+            report=self._report
+        )
+        summarizer.summarize()
 
         # Save report
         self._report.save_to_disk()
