@@ -71,12 +71,11 @@ class AnalysisRunner:
         return yt_video_id
     
     def run_all_analyses(self):
-        # Classification Analysis
-        classification_analyzer = ClassificationAnalyzer(self.comments)
-        class_res = classification_analyzer.run_all_analyses()
-        self._report.res_classification = class_res
-        
-
+        # Clustering
+        clustering_analyzer = ClusteringAnalyzer(video_id=self.yt_video_id, comments=self.comments)
+        clustering_analyzer.cluster()
+        clus_res = clustering_analyzer.describe_clusters()
+        self._report.res_clustering = clus_res
 
         # Summarize report TODO: Remove later, jut for testing
         summarizer = ReportSummarizer(
@@ -88,14 +87,13 @@ class AnalysisRunner:
 
 
 
+        
 
+        # Classification Analysis
+        classification_analyzer = ClassificationAnalyzer(self.comments)
+        class_res = classification_analyzer.run_all_analyses()
+        self._report.res_classification = class_res
 
-
-        # Clustering
-        clustering_analyzer = ClusteringAnalyzer(video_id=self.yt_video_id, comments=self.comments)
-        clustering_analyzer.cluster()
-        clus_res = clustering_analyzer.describe_clusters()
-        self._report.res_clustering = clus_res
 
         # LLM Statement Extraction
         statements_analyzer = StatementsAnalyzer(

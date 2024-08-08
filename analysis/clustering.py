@@ -129,36 +129,35 @@ class ClusteringAnalyzer:
         # Fuse clusters by topic
         self._fuse_clusters_by_topic()
 
-    def describe_clusters(self, show_random_comments: bool = False, divider_width: int = 80, divider_str: str = "-"):
-        res = []
+    def describe_clusters(self, show_random_comments: Optional[int] = 5):
+        res = {}
+
         for lab in self._clustering.labels_unique:
-            res.append(f"Cluster Description (Label {lab})".center(divider_width, divider_str))
+            r = res[lab] = {}
 
             # Topic
-            res.append(f"- Topic: {self._clustering.topics[lab]}")
+            r['topic'] = self._clustering.topics[lab]
 
             # Size
             labels = self._clustering.labels
             cluster_size = sum(labels == lab)
-            res.append(f"- Cluster size: {cluster_size} ({100 * cluster_size / len(labels):0.2f}%)")
+            r['size'] = {
+                'abs': cluster_size,
+                'rel': cluster_size / len(labels)
+            }
 
             # Get indices
             clus_indices = np.where(labels == lab)[0]
 
             # Show random comments
-            if show_random_comments:
-                rnd_indices = np.random.choice(clus_indices, size=min(2, cluster_size), replace=False)
-                res.append("")
-                res.append(f"- {len(rnd_indices)} random comments from this cluster: ")
+            if show_random_comments is not None and show_random_comments > 0:
+                r['random_comments'] = []
+
+                rnd_indices = np.random.choice(clus_indices, size=min(show_random_comments, cluster_size), replace=False)
                 for idx in rnd_indices:
-                    res.append(divider_str * (divider_width // 2))
-                    res.append(f"- {self._comments[idx]}")
-
-            res.append("".center(divider_width, divider_str))
-
-            res.append("")
+                    r['random_comments'].append(self._comments[idx])
         
-        return "\n".join(res)
+        return res
 
     def plot_clustering(self, clustering: Clustering, use_umap=True):
         # Prepare colormap for plotting
