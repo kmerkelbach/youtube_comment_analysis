@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import json
-import os
 import logging
-from datetime import datetime, timedelta
 
 # My own modules
 from models.text_models import TextModelManager
@@ -15,6 +12,7 @@ from analysis.statements_analysis import StatementsAnalyzer
 from analysis.clustering import ClusteringAnalyzer
 from analysis.summarizer import ReportSummarizer
 from structures.report import Report
+from structures.comment import flatten_comments
 
 
 # Logging
@@ -71,6 +69,10 @@ class AnalysisRunner:
         return yt_video_id
     
     def run_all_analyses(self):
+        # General facts
+        self._report._comment_count_toplevel = len(self.comments)
+        self._report._comment_count = len(flatten_comments(self.comments))
+
         # Clustering
         clustering_analyzer = ClusteringAnalyzer(video_id=self.yt_video_id, comments=self.comments)
         clustering_analyzer.cluster()

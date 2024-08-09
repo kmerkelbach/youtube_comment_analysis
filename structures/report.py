@@ -13,6 +13,10 @@ class Report:
         self._time_started = datetime.now().isoformat()
         self._time_finished = None
 
+        # General
+        self._comment_count = None
+        self._comment_count_toplevel = None
+
         # Results
         self.res_classification = None
         self.res_clustering = None

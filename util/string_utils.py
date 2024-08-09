@@ -31,6 +31,15 @@ def truncate_line(text: str, max_length: int) -> str:
     return text
 
 
+def format_large_number(num):
+    if abs(num) >= 1_000_000:
+        return f"{num / 1_000_000:.1f}M"
+    elif abs(num) >= 1_000:
+        return f"{num / 1_000:.1f}k"
+    else:
+        return str(num)
+
+
 def post_process_extract_statements(raw: str) -> List[str]:
     # Split by lines
     lines = raw.split("\n")
