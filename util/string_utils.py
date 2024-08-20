@@ -46,7 +46,7 @@ def post_process_extract_statements(raw: str) -> List[str]:
     lines = [l for l in lines if len(l) > 0]  # remove blank lines
 
     # Look for enumeration at the start of the line (keep lines such as those starting with "4. ", "15.", "- ", or "• ")
-    matched = [(l, re.search("^(\d+\.|-|•|\*)", l)) for l in lines]
+    matched = [(l, re.search(r"^(\d+\.|-|•|\*)", l)) for l in lines]
     matched = [(l, m) for (l, m) in matched if m is not None]
 
     # Remove enumeration at the start of the line

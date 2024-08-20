@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class Clustering:
     def __init__(self, labels: np.ndarray, labels_unique: List[int], silhouette_by_label: Dict[int, float], clustering_function=None, topics: Dict[int, str] = None):
         self.labels = labels
-        self.labels_unique = labels_unique
+        self.labels_unique = [int(l) for l in labels_unique]
         self.num_clusters = len(self.labels_unique)
         self.silhouette_by_label = silhouette_by_label
         self.silhouette_coef = np.mean(list(silhouette_by_label.values()))
@@ -140,7 +140,7 @@ class ClusteringAnalyzer:
 
             # Size
             labels = self._clustering.labels
-            cluster_size = sum(labels == lab)
+            cluster_size = int(sum(labels == lab))
             r['size'] = {
                 'abs': cluster_size,
                 'rel': cluster_size / len(labels)
@@ -155,7 +155,8 @@ class ClusteringAnalyzer:
 
                 rnd_indices = np.random.choice(clus_indices, size=min(show_random_comments, cluster_size), replace=False)
                 for idx in rnd_indices:
-                    r['random_comments'].append(self._comments[idx])
+                    comment = self._comments[idx]
+                    r['random_comments'].append(str(comment))
         
         return res
 
@@ -255,7 +256,7 @@ class ClusteringAnalyzer:
             clustering.topics[lab_first] = topic
 
             # Update unique labels
-            clustering.labels_unique = list(np.unique(clustering.labels))
+            clustering.labels_unique = [int(l) for l in list(np.unique(clustering.labels))]
 
     def _fuse_clusters_by_topic(self) -> None:
         # Fuse based on embedding distance/similarity of topics

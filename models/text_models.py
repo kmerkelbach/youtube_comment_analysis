@@ -90,11 +90,15 @@ class TextModelManager:
         # Aggregate the results
         if len(res) > 1:
             if type(res[0]) == dict:
-                res = {k: np.mean([r[k] for r in res]) for k in res[0].keys()}
+                res = {k: float(np.mean([r[k] for r in res])) for k in res[0].keys()}
             else:
-                res = np.mean(res, axis=0)
+                res = float(np.mean(res, axis=0))
         else:
             res = res[0]
+
+        # Convert to float
+        if type(res) == dict:
+            res = {k: float(v) for (k, v) in res.items()}
         
         return res
     

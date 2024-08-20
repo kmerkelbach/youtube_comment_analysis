@@ -28,7 +28,7 @@ class ClassificationAnalyzer:
                 
                 for idx, k in enumerate(comp.keys()):
                     if idx == max_idx:
-                        comp[k] = prob_sum
+                        comp[k] = float(prob_sum)
                     else:
                         comp[k] = 0.0
                 
@@ -50,7 +50,7 @@ class ClassificationAnalyzer:
             mean_score = np.sum(class_scores) / total_likes
 
             # Save result
-            stats[cl] = mean_score
+            stats[cl] = float(mean_score)
 
         return stats
 

@@ -1,7 +1,8 @@
 import os
 from typing import List, Dict
-import json
+from json_tricks import dump, load
 import pandas as pd
+import numpy as np
 from glob import glob
 
 
@@ -72,8 +73,8 @@ def load_json(file_path):
     try:
         if os.path.exists(file_path):
             with open(file_path, 'r') as file:
-                return json.load(file)
-    except (IOError, json.JSONDecodeError) as e:
+                return load(file)
+    except Exception as e:
         logger.error(f"Error reading JSON from {file_path}: {e}")
     return None
 
@@ -81,7 +82,12 @@ def load_json(file_path):
 def save_json(file_path, data):
     try:
         with open(file_path, 'w') as file:
-            json.dump(data, file, indent=4)
+            dump(
+                data,
+                file,
+                indent=4
+            )
+            logger.info(f"Wrote JSON file to {file_path}.")
             return True
     except IOError as e:
         logger.error(f"Error writing JSON to {file_path}: {e}")

@@ -117,7 +117,12 @@ class StatementsAnalyzer:
             res_raw = self._llm.chat(prompt)
             rating = post_process_single_entry_json(res_raw)
             if rating is not None:
-                break
+                try:
+                    rating = int(rating)
+                    break
+                except:
+                    pass
+        rating = int(rating)
         
         # If no rating could be extracted, mark the statements as being neutral
         rating_raw = rating
@@ -145,7 +150,7 @@ class StatementsAnalyzer:
         # their stand is
 
         # Get total like count to normalize scores
-        total_likes = np.sum([comm.likes for comm in comments_topk])
+        total_likes = int(np.sum([comm.likes for comm in comments_topk]))
 
         statements = sum(self._comment_statements.values(), [])  # get all statements, regardless of kind
         comparisons_all = list(itertools.product(statements, comments_topk))
@@ -203,7 +208,7 @@ class StatementsAnalyzer:
         statement_scores, statement_voices = self._check_agreement_all(comments_topk)
 
         # Save statement scores and rules of rating system
-        res['scores'] = statement_scores
+        res['scores'] = dict(statement_scores)
         res['rules'] = {
             'prompt_ranges': self.agreement_prompt_settings,
             'terms': {
