@@ -35,6 +35,9 @@ class Report:
         # Add finishing time
         self._time_finished = datetime.now().isoformat()
 
+        # TODO: Convert random comments in clustering into string
+        g = 15
+
         # Construct JSON-seriazable dictionary
         report_info = {
             "meta": {

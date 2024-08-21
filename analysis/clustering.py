@@ -129,7 +129,7 @@ class ClusteringAnalyzer:
         # Fuse clusters by topic
         self._fuse_clusters_by_topic()
 
-    def describe_clusters(self, show_random_comments: Optional[int] = 5):
+    def describe_clusters(self, show_random_comments: Optional[int] = 50):
         res = {}
 
         for lab in self._clustering.labels_unique:
@@ -156,7 +156,7 @@ class ClusteringAnalyzer:
                 rnd_indices = np.random.choice(clus_indices, size=min(show_random_comments, cluster_size), replace=False)
                 for idx in rnd_indices:
                     comment = self._comments[idx]
-                    r['random_comments'].append(str(comment))
+                    r['random_comments'].append(comment)
         
         return res
 
@@ -257,6 +257,22 @@ class ClusteringAnalyzer:
 
             # Update unique labels
             clustering.labels_unique = [int(l) for l in list(np.unique(clustering.labels))]
+
+        def rename_in_dict(d, pre, post):
+            d[post] = d[pre]
+            return d
+
+        # Assign cluster labels such that there are no gaps
+        labels_no_gaps = list(np.arange(len(clustering.labels_unique)))
+        if clustering.labels_unique != labels_no_gaps:
+            for label_pre, label_post in zip(clustering.labels_unique, labels_no_gaps):
+                clustering.labels[np.where(clustering.labels == label_pre)] = label_post
+
+                clustering.topics = rename_in_dict(clustering.topics, label_pre, label_post)
+                clustering.silhouette_by_label = rename_in_dict(clustering.silhouette_by_label, label_pre, label_post)
+
+            clustering.labels_unique = labels_no_gaps
+            clustering.num_clusters = len(clustering.labels_unique)
 
     def _fuse_clusters_by_topic(self) -> None:
         # Fuse based on embedding distance/similarity of topics

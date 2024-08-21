@@ -9,7 +9,7 @@ import itertools
 from api.youtube_api import YoutubeAPI
 from models.llm_api import LLM
 from structures.report import Report
-from structures.comment import Comment
+from structures.comment import Comment, sample_from_comments
 from util.string_utils import format_large_number
 
 
@@ -49,11 +49,60 @@ class ReportSummarizer:
             lines.append(f"{100 * sen_frac:0.1f}% of comments are {sen_name}")
         lines.append("")
 
+        # Statement extraction
+        lines.append("Statements extracted from the comments:")
+        s_voices = self._report.res_statements['voices']
+        s_scores = self._report.res_statements['scores']
+        score_ranges = self._report.res_statements['rules']['prompt_ranges']
+        for idx, (statement, voice_info) in enumerate(s_voices.items()):
+            score = s_scores[statement]
+            s_lines = []
+            s_lines.append(f"Statement {idx + 1}: {statement}")
+            s_lines.append(f"Agreement score is {score:0.0f} (a value between {score_ranges['min']} and {score_ranges['max']}).")
+            s_lines.append(f"{100 * voice_info['frac_engaged']:0.0f}% of comments are talking about this.")
+            if 'opinions' in voice_info:
+                s_lines.append(f"Out of those, " +
+                               ", ".join([f"{100 * fraction:0.0f}% {opinion}"
+                                          for (opinion, fraction) in voice_info['opinions'].items()]))
+            s_lines.append("")
+            lines += s_lines
 
+        # Clustering by topic
+        lines.append("Clusters of topics:")
+        clustering = self._report.res_clustering
+        lines.append(f"Comments were clustered by topic and we identified {len(clustering)} clusters in the comments.")
+        for clus_label, clus_info in clustering.items():
+            c_lines = []
+            c_lines.append(f"Cluster {clus_label + 1}: {clus_info['topic']}")
+            c_lines.append(f"{100 * clus_info['size']['rel']:0.0f}% of comments are in this cluster.")
+            c_lines.append("Here are some random comments from this cluster:")
+            c_lines += sample_from_comments(
+                clus_info['random_comments'],
+                max_comment_chars_shown=600
+            )
+            c_lines.append("")
+            lines += c_lines
 
-        # TODO: Gather important information I want the LLM to know about
+        # TODO: Instruct the LLM to write a compelling summary with all of the important facts.
         # TODO: Experiment with prompting styles - the summary should be captivating and not feel LLM-written
         g = 15
+
+    def _build_prompt_extract_statements(self, comments: List[Comment]) -> str:
+        lines = [
+            f"You are a professional YouTube comment analyst. Given a video title and some comments, extract statements from the comments."]
+        lines.append(f"Video title: {self._video_title}")
+
+        lines.append("\nSample from the comments:")
+        comm_lines = sample_from_comments(comments)
+        lines += comm_lines
+
+        lines.append(
+            "\nExtract 5 statements voiced in the comments. A statement should be a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\". Phrase each statement in a way it could be uttered by a viewer of the video. " \
+            "Do not explain any of the statements you extract. " \
+            "There is no need to repeat the video title in your assessment.")
+
+        prompt = "\n".join(lines)
+        return prompt
 
     def _create_summary(self):
         # Make prompt and send to LLM
