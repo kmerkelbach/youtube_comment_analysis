@@ -274,6 +274,11 @@ class ClusteringAnalyzer:
             clustering.labels_unique = labels_no_gaps
             clustering.num_clusters = len(clustering.labels_unique)
 
+        # Delete obsolete fields in dict
+        for obsolete_label in set(clustering.topics.keys()) - set(clustering.labels_unique):
+            del clustering.topics[obsolete_label]
+            del clustering.silhouette_by_label[obsolete_label]
+
     def _fuse_clusters_by_topic(self) -> None:
         # Fuse based on embedding distance/similarity of topics
         cluster_groups = self._fuse_clusters_embedding_sim(self._clustering.topics)

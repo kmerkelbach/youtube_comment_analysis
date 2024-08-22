@@ -25,6 +25,7 @@ class ReportSummarizer:
 
         self._youtube = YoutubeAPI()
         self._video_title = self._youtube.get_title(self.video_id)
+        self._video_creator = self._youtube.get_creator_name(self.video_id)
 
         self._llm = LLM()
 
@@ -38,6 +39,7 @@ class ReportSummarizer:
         # General facts
         lines.append("General:")
         lines.append(f"Video title: {self._video_title}")
+        lines.append(f"Video creator or channel: {self._video_creator}")
         lines.append(f"Comment count: {format_large_number(self._report._comment_count)}")
         lines.append("")
 
@@ -83,9 +85,14 @@ class ReportSummarizer:
             c_lines.append("")
             lines += c_lines
 
-        # TODO: Instruct the LLM to write a compelling summary with all of the important facts.
-        # TODO: Experiment with prompting styles - the summary should be captivating and not feel LLM-written
-        g = 15
+        # Instruct to summarize
+        lines.append("Your task is to summarize the information provided here."
+                     " You may also quote statistics or other parts directly.")
+        lines.append("There is no need to repeat the video title in your summary, please go straight to the contents.")
+
+        prompt = "\n".join(lines)
+
+        return prompt
 
     def _build_prompt_extract_statements(self, comments: List[Comment]) -> str:
         lines = [
@@ -114,6 +121,8 @@ class ReportSummarizer:
     def summarize(self):
         # Create summary
         summary = self._create_summary()
+
+        logger.info("Summary:\n" + summary)
 
         # Save summary
         self._report.summary = summary

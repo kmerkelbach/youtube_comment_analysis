@@ -31,12 +31,21 @@ class Report:
             f"{self._video_id}_text_data.json"
         )
 
+    def _convert_random_comments_to_str(self, rnd_field="random_comments"):
+        res_clus = self.res_clustering
+        for clus_label in res_clus.keys():
+            clus_info = res_clus[clus_label]
+            if rnd_field in clus_info:
+                comments = clus_info[rnd_field]
+                comments = [str(comm) for comm in comments]
+                clus_info[rnd_field] = comments
+
     def save_to_disk(self):
         # Add finishing time
         self._time_finished = datetime.now().isoformat()
 
-        # TODO: Convert random comments in clustering into string
-        g = 15
+        # Convert random comments in clustering into strings
+        self._convert_random_comments_to_str()
 
         # Construct JSON-seriazable dictionary
         report_info = {
