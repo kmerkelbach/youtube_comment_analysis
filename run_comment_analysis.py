@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import logging
+import argparse
 
 # My own modules
 from models.text_models import TextModelManager
@@ -27,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 class AnalysisRunner:
     def __init__(self) -> None:
+        # Parse arguments
+        args = self._parse_args()
+
         # Initialize classification models
         self.text_model_manager = TextModelManager()
 
@@ -35,7 +39,7 @@ class AnalysisRunner:
 
         # Youtube API
         self.youtube = YoutubeAPI()
-        self.yt_video_id = self.pick_yt_video_id()
+        self.yt_video_id = args.video_id
         self.youtube_setup(self.yt_video_id)
 
         # Get comments
@@ -46,13 +50,24 @@ class AnalysisRunner:
             video_id=self.yt_video_id
         )
 
+    def _parse_args(self):
+        parser = argparse.ArgumentParser("YouTube Comment Analyzer")
+        parser.add_argument(
+            "--video_id",
+            type=str,
+            required=True,
+            help="YouTube video ID of the video to be analyzed"
+        )
+
+        return parser.parse_args()
+
     def youtube_setup(self, yt_video_id: str):
         self.youtube.set_current_video(yt_video_id)
 
         # Print some information about the video
         logger.info(self.youtube.get_title())
         logger.info(self.youtube.get_creator_name())
-    
+
     @staticmethod
     def pick_yt_video_id():
         yt_video_test_id_tomato = "9WQnap-UAiQ"
