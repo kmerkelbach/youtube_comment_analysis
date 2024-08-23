@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 
 from util.file_utils import save_json, named_dir
+from models.llm_api import LLM
 
 
 class Report:
@@ -9,9 +10,10 @@ class Report:
         # Video information
         self._video_id = video_id
 
-        # Timing
+        # Statistics
         self._time_started = datetime.now().isoformat()
         self._time_finished = None
+        self._llm = LLM()  # need the LLM for getting its input/output statistics
 
         # General
         self._comment_count = None
@@ -51,7 +53,11 @@ class Report:
         report_info = {
             "meta": {
                 "time_started": self._time_started,
-                "time_finished": self._time_finished,
+                "time_finished": self._time_finished
+            },
+            "llm_use": {
+                "num_input_chars": self._llm.get_num_input_chars(),
+                "num_output_chars": self._llm.get_num_output_chars()
             },
             "results": {
                 "classification": self.res_classification,
@@ -60,8 +66,12 @@ class Report:
             },
             "summary": self.summary
         }
-        
-        save_json(
-            file_path=self._construct_file_path(),
-            data=report_info
-        )
+
+        try:
+            save_json(
+                file_path=self._construct_file_path(),
+                data=report_info
+            )
+        except:
+            from IPython import embed
+            embed()
