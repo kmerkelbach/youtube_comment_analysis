@@ -93,8 +93,10 @@ class ClassificationAnalyzer:
             repl = comm.replies[0]
         
             # Find out sum of differences between sentiment of comment and reply
-            diffs = np.sum(np.power(np.abs(self._classes_to_arr(comm, classi_type) - self._classes_to_arr(repl, classi_type)), 2))
-            
+            diffs = float(np.sum(
+                np.power(np.abs(self._classes_to_arr(comm, classi_type) - self._classes_to_arr(repl, classi_type)), 2)
+            ))
+
             rows.append({"comment": comm.text, "reply": repl.text, "difference": diffs})
         
         # Sort rows by difference - highest first

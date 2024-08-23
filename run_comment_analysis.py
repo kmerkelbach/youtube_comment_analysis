@@ -106,8 +106,7 @@ class AnalysisRunner:
         )
 
         statement_res = statements_analyzer.run_analysis(
-            limit_statements=2,  # For testing, limit number of statements
-            comment_top_k=2  # reduced count for testing
+            comment_top_k=50  # reduced count for testing
         )
         self._report.res_statements = statement_res
 

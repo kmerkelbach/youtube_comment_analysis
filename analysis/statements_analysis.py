@@ -154,6 +154,8 @@ class StatementsAnalyzer:
 
         statements = sum(self._comment_statements.values(), [])  # get all statements, regardless of kind
         comparisons_all = list(itertools.product(statements, comments_topk))
+        logger.info(f"Examining agreement between {len(statements)} statements and {len(comments_topk)} comments:"
+                    f" {len(comparisons_all)} comparisons")
         for statement, comment in tqdm(comparisons_all, desc="Measuring statement agreement with comments ..."):
             # Find out agreement between statement and comment
             rating = self._do_statements_agree(
@@ -192,11 +194,11 @@ class StatementsAnalyzer:
         # Extract statements
         self._comment_statements = self._extract_statements()
 
-        # Number of statements can be limited for testing
+        # Number of statements can be limited
         if limit_statements is not None:
             self._comment_statements = {
                 kind: [statements[idx] for idx in np.random.choice(
-                    np.arange(len(statements)), size=min(len(statements), 2), replace=False
+                    np.arange(len(statements)), size=min(len(statements), limit_statements), replace=False
                 )]
                 for (kind, statements) in self._comment_statements.items()
             }
