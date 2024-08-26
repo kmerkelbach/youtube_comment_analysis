@@ -296,7 +296,7 @@ class YoutubeAPI:
     def get_comments(self, video_id: Optional[str] = None, req: int = None):
         video_id = self._get_video_id(video_id)
 
-        print(f"Starting comments retrieval for video ID {video_id} ('{self.get_title(video_id)}')")
+        logger.info(f"Starting comments retrieval for video ID {video_id} ('{self.get_title(video_id)}')")
 
         # Raw comments in the form of a (JSON) dictionary
         comments_raw = self._get_comments_raw(video_id=video_id, req=req)

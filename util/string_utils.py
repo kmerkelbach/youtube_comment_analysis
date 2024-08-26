@@ -3,7 +3,7 @@ import json
 from typing import List, Dict
 
 
-def split_text_if_long(text, max_len=1500):
+def split_text_if_long(text, max_len=1000):
     if len(text) <= max_len:
         return [text]
     else:

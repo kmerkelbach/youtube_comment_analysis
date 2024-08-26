@@ -106,7 +106,7 @@ class AnalysisRunner:
         )
 
         statement_res = statements_analyzer.run_analysis(
-            comment_top_k=50  # reduced count for testing
+            comment_top_k=50  # 50 -> around 0.35 USD LLM cost; between 500 and 750 LLM comparisons
         )
         self._report.res_statements = statement_res
 
