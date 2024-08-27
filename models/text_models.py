@@ -77,15 +77,30 @@ class TextModelManager:
         return self._classi_funs[classi_type]
 
     def classify(self, text: str, classi_type: ClassificationType):
-        # Text may be very long. Split the comment into parts. For most comments, the result will be a single part
-        len_limit = classification_length_limits[classi_type]
-        text_parts = split_text_if_long(text, max_len=len_limit)
-
-        # Calculate function for each part
+        # Get classification function and its length limit
         fun = self._get_function(classi_type)
-        res = []
-        for part in text_parts:
-            res.append(fun(part))
+        len_limit = classification_length_limits[classi_type]
+
+        # Text may be very long. Split the comment into parts. For most comments, the result will be a single part.
+        # Try with iteratively smaller splits until we succeed.
+        while True:
+            # Split
+            text_parts = split_text_if_long(text, max_len=len_limit)
+
+            # Calculate function output for each part
+            res = []
+            try:
+                for part in text_parts:
+                    res.append(fun(part))
+            except:
+                len_limit_new = int(len_limit / 1.5)
+                logger.info(f"Classification with {classi_type.name} failed with "
+                            f"length limit {len_limit}; retrying with {len_limit_new}.")
+                len_limit = len_limit_new
+                continue
+
+            # Break out of the loop once we have succeeded.
+            break
 
         # Aggregate the results
         if len(res) > 1:
