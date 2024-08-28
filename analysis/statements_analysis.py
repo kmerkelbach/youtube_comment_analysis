@@ -113,6 +113,7 @@ class StatementsAnalyzer:
         prompt = self._build_prompt_do_statements_agree(statement_1, statement_2)
 
         # Send prompt to LLM
+        rating = None
         for _ in range(trials):
             res_raw = self._llm.chat(prompt)
             rating = post_process_single_entry_json(res_raw)
@@ -122,7 +123,9 @@ class StatementsAnalyzer:
                     break
                 except:
                     pass
-        rating = int(rating)
+
+        if rating is None:
+            rating = 0
         
         # If no rating could be extracted, mark the statements as being neutral
         rating_raw = rating
