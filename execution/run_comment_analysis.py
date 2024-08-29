@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisRunner:
-    def __init__(self) -> None:
-        # Parse arguments
-        args = self._parse_args()
+    def __init__(self, yt_video_id: str) -> None:
 
         # Initialize classification models
         self.text_model_manager = TextModelManager()
@@ -39,7 +37,7 @@ class AnalysisRunner:
 
         # Youtube API
         self.youtube = YoutubeAPI()
-        self.yt_video_id = args.video_id
+        self.yt_video_id = yt_video_id
         self.youtube_setup(self.yt_video_id)
 
         # Get comments
@@ -49,17 +47,6 @@ class AnalysisRunner:
         self._report = Report(
             video_id=self.yt_video_id
         )
-
-    def _parse_args(self):
-        parser = argparse.ArgumentParser("YouTube Comment Analyzer")
-        parser.add_argument(
-            "--video_id",
-            type=str,
-            required=True,
-            help="YouTube video ID of the video to be analyzed"
-        )
-
-        return parser.parse_args()
 
     def youtube_setup(self, yt_video_id: str):
         self.youtube.set_current_video(yt_video_id)
@@ -122,6 +109,20 @@ class AnalysisRunner:
         self._report.save_to_disk()
 
 
+
+def parse_args():
+    parser = argparse.ArgumentParser("YouTube Comment Analyzer")
+    parser.add_argument(
+        "--video_id",
+        type=str,
+        required=True,
+        help="YouTube video ID of the video to be analyzed"
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    runner = AnalysisRunner()
+    args = parse_args()
+    runner = AnalysisRunner(yt_video_id=args.video_id)
     runner.run_all_analyses()
