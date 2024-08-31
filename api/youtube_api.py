@@ -72,6 +72,12 @@ class YoutubeAPI:
     def get_current_video(self):
         return self._current_video_id
 
+    @staticmethod
+    def video_id_for_youtube_url(video_url: str):
+        pre, video_id = video_url.split("watch?v=")
+
+        return video_id
+
     def _get_video_id(self, video_id_user_provided: Optional[str]) -> str:
         ids = [video_id_user_provided, self._current_video_id]
 

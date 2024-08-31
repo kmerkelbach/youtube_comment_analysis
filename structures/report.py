@@ -42,6 +42,15 @@ class Report:
                 comments = [str(comm) for comm in comments]
                 clus_info[rnd_field] = comments
 
+    def get_comment_count(self):
+        return self._comment_count
+
+    def get_llm_stats(self):
+        return {
+            "num_input_chars": self._llm.get_num_input_chars(),
+            "num_output_chars": self._llm.get_num_output_chars()
+        }
+
     def save_to_disk(self):
         # Add finishing time
         self._time_finished = datetime.now().isoformat()
@@ -53,12 +62,10 @@ class Report:
         report_info = {
             "meta": {
                 "time_started": self._time_started,
-                "time_finished": self._time_finished
+                "time_finished": self._time_finished,
+                "num_comments": self._comment_count
             },
-            "llm_use": {
-                "num_input_chars": self._llm.get_num_input_chars(),
-                "num_output_chars": self._llm.get_num_output_chars()
-            },
+            "llm_use": self.get_llm_stats(),
             "results": {
                 "classification": self.res_classification,
                 "clustering": self.res_clustering,

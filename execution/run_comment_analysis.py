@@ -48,6 +48,9 @@ class AnalysisRunner:
             video_id=self.yt_video_id
         )
 
+    def get_report(self):
+        return self._report
+
     def youtube_setup(self, yt_video_id: str):
         self.youtube.set_current_video(yt_video_id)
 
