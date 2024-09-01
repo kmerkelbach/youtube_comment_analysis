@@ -88,27 +88,13 @@ class ReportSummarizer:
         # Instruct to summarize
         lines.append("Your task is to summarize the information provided here."
                      " You may also quote statistics or other parts directly.")
+        lines.append("When quoting statistics, remember that notions such as agreement score may be meaningless to "
+                     "readers. In these cases, find a different way of phrasing the score of agreement.")
+        lines.append("Also, don't refer to statements by their number.")
         lines.append("There is no need to repeat the video title in your summary, please go straight to the contents.")
 
         prompt = "\n".join(lines)
 
-        return prompt
-
-    def _build_prompt_extract_statements(self, comments: List[Comment]) -> str:
-        lines = [
-            f"You are a professional YouTube comment analyst. Given a video title and some comments, extract statements from the comments."]
-        lines.append(f"Video title: {self._video_title}")
-
-        lines.append("\nSample from the comments:")
-        comm_lines = sample_from_comments(comments)
-        lines += comm_lines
-
-        lines.append(
-            "\nExtract 5 statements voiced in the comments. A statement should be a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\". Phrase each statement in a way it could be uttered by a viewer of the video. " \
-            "Do not explain any of the statements you extract. " \
-            "There is no need to repeat the video title in your assessment.")
-
-        prompt = "\n".join(lines)
         return prompt
 
     def _create_summary(self):
