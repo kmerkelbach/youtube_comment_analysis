@@ -50,8 +50,20 @@ class CSVRunner:
         for _, row in self._state.iterrows():
             video_id = row[field_video_id]
 
-            # Test if the title field is filled
-            if not (field_title in row and not np.isnan(row[field_title]) and len(row[field_title]) > 0):
+            # Test if the title field exists - if not, we will end up adding all videos
+            if field_title not in row:
+                self.videos_remaining.append(video_id)
+                continue
+
+            # Apparently, the title field exists - but it may still be empty for this row (in which case we should
+            # add the video to our to-do list)
+            content = row[field_title]
+
+            # No need to add the video if its title field is filled
+            if type(content) == str and len(content) > 0:
+                continue
+
+            if np.isnan(content):
                 self.videos_remaining.append(video_id)
 
         logger.info(f"Of {len(self._state)} entries in the input file, {len(self.videos_remaining)} are remaining.")
@@ -61,13 +73,13 @@ class CSVRunner:
             runner = self._run_for_video_id(video_id)
             self._add_results_to_state(runner)
 
-        logger.info("All video analyses done.")
+            # Write new CSV to disk
+            self._state.to_csv(
+                self._input_path,
+                index=False
+            )
 
-        # Once all videos are done, write new CSV to disk
-        self._state.to_csv(
-            self._input_path,
-            index=False
-        )
+        logger.info("All video analyses done.")
 
     def _add_results_to_state(self, runner: AnalysisRunner):
         # Find row of state table corresponding to this video

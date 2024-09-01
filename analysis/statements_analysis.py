@@ -108,7 +108,7 @@ class StatementsAnalyzer:
         
         return comment_statements
     
-    def _do_statements_agree(self, statement_1: str, statement_2: str, trials=3):
+    def _do_statements_agree(self, statement_1: str, statement_2: str, trials=6):
         # Make prompt
         prompt = self._build_prompt_do_statements_agree(statement_1, statement_2)
 
@@ -116,7 +116,10 @@ class StatementsAnalyzer:
         rating = None
         for _ in range(trials):
             res_raw = self._llm.chat(prompt)
-            rating = post_process_single_entry_json(res_raw)
+            try:
+                rating = post_process_single_entry_json(res_raw)
+            except:
+                rating = None
             if rating is not None:
                 try:
                     rating = int(rating)
@@ -233,7 +236,8 @@ class StatementsAnalyzer:
             # Re-normalize fractions for other voices
             if frac_neutral > 0 and frac_engaged > 0:
                 prob_mass = sum(agree_info.get(opinion, 0) for opinion in self.voices_nonneut)
-                agree_info = {opinion: frac / prob_mass for (opinion, frac) in agree_info.items()}
+                if prob_mass > 0:
+                    agree_info = {opinion: frac / prob_mass for (opinion, frac) in agree_info.items()}
 
             # Sort opinions alphabetically and keep only non-neutral opinions
             agree_info = sorted(agree_info.items(), key=lambda t: t[0])
