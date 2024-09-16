@@ -1,8 +1,10 @@
+import time
+from http.client import responses
 from typing import Optional, Dict, List
 import os
 from dateutil import parser as dateparser
 import numpy as np
-import googleapiclient.discovery
+import googleapiclient.discovery, googleapiclient.errors
 from tqdm import tqdm
 
 
@@ -136,18 +138,32 @@ class YoutubeAPI:
         except:
             return unk
     
-    def _get_comments_page_raw(self, video_id: Optional[str] = None, max_results: int = 50, page_token: str = None):
+    def _get_comments_page_raw(self, video_id: Optional[str] = None, max_results: int = 50, page_token: str = None,
+                               num_retries: int = 20, wait_time: float = 0.05):
         video_id = self._get_video_id(video_id)
 
-        request = self._client.commentThreads().list(
-            part="snippet,replies",
-            order="time",
-            videoId=video_id,
-            maxResults=max_results,
-            textFormat="plainText",
-            pageToken=page_token
-        )
-        response = request.execute()
+        response = None
+        for _ in range(num_retries):
+            request = self._client.commentThreads().list(
+                part="snippet,replies",
+                order="time",
+                videoId=video_id,
+                maxResults=max_results,
+                textFormat="plainText",
+                pageToken=page_token
+            )
+
+            try:
+                response = request.execute()
+            except googleapiclient.errors.HttpError:
+                # Try again
+                time.sleep(wait_time)
+                wait_time *= 1.3
+                continue
+
+            # If the preceding line worked, we can exit the loop
+            break
+
         return response
     
     def _get_comments_raw(self, video_id: Optional[str] = None, req: int = 200, max_count_per_page: int = 100):
@@ -168,7 +184,11 @@ class YoutubeAPI:
 
         page_idx = 0
         while not have_enough_comments:
-            new_comments_dict = self._get_comments_page_raw(video_id, max_results=min(max_count_per_page, comments_left), page_token=next_page_token)
+            new_comments_dict = self._get_comments_page_raw(
+                video_id,
+                max_results=min(max_count_per_page, comments_left),
+                page_token=next_page_token
+            )
             next_page_token = new_comments_dict.get(field_npt, None)
 
             new_comments = new_comments_dict["items"]
