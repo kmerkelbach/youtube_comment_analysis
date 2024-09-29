@@ -4,11 +4,12 @@ import numpy as np
 import itertools
 from sklearn.cluster import KMeans, SpectralClustering, HDBSCAN
 from sklearn.mixture import GaussianMixture
-from sklearn.metrics import silhouette_samples
+from sklearn.metrics import silhouette_samples, silhouette_score
+from sklearn.manifold import TSNE
+from sklearn.neighbors import NearestNeighbors
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import umap.umap_ as umap
-from sklearn.manifold import TSNE
 
 from structures.comment import Comment, flatten_comments, sample_from_comments
 from util.string_utils import post_process_single_entry_json
@@ -23,12 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 class Clustering:
-    def __init__(self, labels: np.ndarray, labels_unique: List[int], silhouette_by_label: Dict[int, float], clustering_function=None, topics: Dict[int, str] = None):
+    def __init__(self, labels: np.ndarray, labels_unique: List[int], silhouette_coef: float, clustering_function=None, topics: Dict[int, str] = None):
         self.labels = labels
         self.labels_unique = [int(l) for l in labels_unique]
         self.num_clusters = len(self.labels_unique)
-        self.silhouette_by_label = silhouette_by_label
-        self.silhouette_coef = np.mean(list(silhouette_by_label.values()))
+        self.silhouette_coef = silhouette_coef
         self.clustering_function = clustering_function
         self.topics = topics
 
@@ -59,35 +59,81 @@ class ClusteringAnalyzer:
     
     @staticmethod
     def _eval_clustering(matrix, labels):
+        logger.info("Evaluating ...")
         labs_unique = list(np.unique(labels))
         
         # Silhouette score for each sample (i.e., comment)
         try:
-            sil_all = silhouette_samples(matrix, labels)
+            sil_coef = silhouette_score(matrix, labels)
         except ValueError:
             # this may happen if there is only one label
-            sil_all = np.copy(labels)
-            sil_all.fill(-1)  # worst possible value
-        
-        # Silhouette score, aggregated by cluster
-        sil_by_label = {lab: np.mean(sil_all[np.where(labels == lab)[0]]) for lab in labs_unique}
-        
-        return labs_unique, sil_by_label
+            sil_coef = -1.0  # worst possible value
+
+        logger.info("Evaluation done!")
+        return labs_unique, sil_coef
     
-    def _generate_clusterings(self) -> List[Clustering]:
+    def _generate_clusterings(self, max_points_to_cluster=2500) -> List[Clustering]:
         # Clustering settings
         n_range = [2, 3, 4, 5, 6, 7, 8, 16, 32, 64]
         n_range = [n for n in n_range if n < len(self._comments)]  # remove cluster counts larger than the number of samples
-        clus_funs = [cluster_kmeans, cluster_gmm, cluster_spectral_clustering, cluster_hdbscan]
+        clus_funs = [
+            cluster_kmeans,
+            cluster_gmm
+        ]
+
+        # Get embedding matrix
+        matrix = self._get_emb_matrix()
+
+        # If we have too many points to cluster, subsample them
+        num_points = matrix.shape[0]
+        do_subsample = num_points > max_points_to_cluster
+        if do_subsample:
+            logger.info(f"Clustering on {max_points_to_cluster} comments out of the {num_points} total.")
+            likes = [c.likes for c in self._comments]
+            likes_indices_sorted = np.argsort(likes)[::-1]  # get index order that would lead to sorting in descending
+            # order
+            chosen_indices = list(likes_indices_sorted[:max_points_to_cluster])
+            matrix = matrix[chosen_indices, :]
 
         clusterings = []
-        matrix = self._get_emb_matrix()
         for n, clus_fun in tqdm(list(itertools.product(n_range, clus_funs)), desc="Clustering ..."):
             # Cluster
+            logger.info(f"Starting to cluster ({n}, {clus_fun}) ...")
             labels = clus_fun(matrix, n=n)
+            logger.info("Clustering done!")
+
+            # If we clustered on a subset of the data, we need to now find out the cluster assignment for the rest
+            # of the points
+            if do_subsample:
+
+                # Train a NN classifier on the matrix we clustered with
+                neighbors = NearestNeighbors(n_neighbors=min(10, num_points // 2)).fit(matrix)
+
+                # Query the NN classifier with the full embedding matrix
+                matrix = self._get_emb_matrix()
+                nn_distances, nn_indices = neighbors.kneighbors(matrix)
+
+                labels_new = []
+                for pnt_index in tqdm(range(num_points), total=num_points, desc="Finding nearest neighbors ..."):
+                    # Skip this point if it has been clustered
+                    if pnt_index in chosen_indices:
+                        idx_in_sampling_indices = chosen_indices.index(pnt_index)
+                        lab = labels[idx_in_sampling_indices]
+                        labels_new.append(lab)
+                        continue
+
+                    # Collect cluster labels for all nearest neighbors of this point
+                    nn_labels = [labels[idx] for idx in nn_indices[pnt_index]]
+
+                    # Figure out the dominant label
+                    nn_lab, _ = list(zip(*np.unique(nn_labels, return_counts=True)))[-1]
+
+                    labels_new.append(nn_lab)
+
+                labels = np.array(labels_new)
 
             # Evaluate
-            labs_unique, sil_by_label = self._eval_clustering(matrix, labels)
+            labs_unique, silhouette_coef = self._eval_clustering(matrix, labels)
 
             # Skip clustering if it is degenerate (i.e., the majority of points are in a single cluster)
             cluster_fractions = [len(np.where(labels == lab)[0]) / len(labels) for lab in labs_unique]
@@ -100,7 +146,7 @@ class ClusteringAnalyzer:
             clustering = Clustering(
                 labels=labels,
                 labels_unique=labs_unique,
-                silhouette_by_label=sil_by_label,
+                silhouette_coef=silhouette_coef,
                 clustering_function=clus_fun
             )
             clusterings.append(clustering)
@@ -268,7 +314,6 @@ class ClusteringAnalyzer:
                 clustering.labels[np.where(clustering.labels == label_pre)] = label_post
 
                 clustering.topics = rename_in_dict(clustering.topics, label_pre, label_post)
-                clustering.silhouette_by_label = rename_in_dict(clustering.silhouette_by_label, label_pre, label_post)
 
             clustering.labels_unique = labels_no_gaps
             clustering.num_clusters = len(clustering.labels_unique)
@@ -276,7 +321,6 @@ class ClusteringAnalyzer:
         # Delete obsolete fields in dict
         for obsolete_label in set(clustering.topics.keys()) - set(clustering.labels_unique):
             del clustering.topics[obsolete_label]
-            del clustering.silhouette_by_label[obsolete_label]
 
     def _fuse_clusters_by_topic(self) -> None:
         # Fuse based on embedding distance/similarity of topics
