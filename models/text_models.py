@@ -1,17 +1,15 @@
-from transformers import pipeline
-from sentence_transformers import SentenceTransformer
-from detoxify import Detoxify
-import torch
-import numpy as np
-
-
-from .computations import ClassificationType, classification_length_limits
-from util.string_utils import split_text_if_long
-
-
 import logging
-logger = logging.getLogger(__name__)
 
+import numpy as np
+import torch
+from detoxify import Detoxify
+from sentence_transformers import SentenceTransformer
+from transformers import pipeline
+
+from util.string_utils import split_text_if_long
+from .computations import ClassificationType, classification_length_limits
+
+logger = logging.getLogger(__name__)
 
 # Disable sentence_transformers logging
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
@@ -47,7 +45,7 @@ class TextModelManager:
             if classi_type == ClassificationType.Sentiment:
                 # Model
                 model = pipeline(
-                    model="lxyuan/distilbert-base-multilingual-cased-sentiments-student", 
+                    model="lxyuan/distilbert-base-multilingual-cased-sentiments-student",
                     top_k=None
                 )
                 # Function
@@ -114,9 +112,9 @@ class TextModelManager:
         # Convert to float
         if type(res) == dict:
             res = {k: float(v) for (k, v) in res.items()}
-        
+
         return res
-    
+
     def embed(self, text, use_cache=True):
         # Load embedding from cache if possible
         if use_cache and text in self._emb_cache:
@@ -135,7 +133,7 @@ class TextModelManager:
             #
             # monolingual (English only) model: SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
             self._embedding_model = SentenceTransformer("sentence-transformers/LaBSE")
-        
+
         # Embed text
         emb = self._embedding_model.encode(text)
         emb /= np.linalg.norm(emb)  # normalize to unit length

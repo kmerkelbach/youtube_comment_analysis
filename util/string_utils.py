@@ -1,6 +1,6 @@
-import re
 import json
-from typing import List, Dict
+import re
+from typing import List
 
 
 def split_text_if_long(text, max_len=1000):
@@ -54,7 +54,7 @@ def post_process_extract_statements(raw: str) -> List[str]:
 
     # Strip lines
     lines = [l.strip() for l in lines]
-    
+
     return lines
 
 
@@ -68,7 +68,7 @@ def post_process_single_entry_json(raw):
     for line in reversed(lines):
         # Match regex
         matches = re.findall(pattern, line)
-        
+
         if len(matches) == 0:
             continue
 
@@ -91,5 +91,5 @@ def post_process_single_entry_json(raw):
     if len(jso) > 1:
         return None  # invalid json
     val = list(jso.values())[0]
-    
+
     return val

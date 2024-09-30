@@ -1,30 +1,31 @@
-from typing import List, Dict, Optional, Tuple
-from tqdm import tqdm
-import numpy as np
 import itertools
-from sklearn.cluster import KMeans, SpectralClustering, HDBSCAN
-from sklearn.mixture import GaussianMixture
-from sklearn.metrics import silhouette_samples, silhouette_score
-from sklearn.manifold import TSNE
-from sklearn.neighbors import NearestNeighbors
+import logging
+from typing import List, Dict, Optional, Tuple
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 import umap.umap_ as umap
+from sklearn.cluster import KMeans, SpectralClustering, HDBSCAN
+from sklearn.manifold import TSNE
+from sklearn.metrics import silhouette_score
+from sklearn.mixture import GaussianMixture
+from sklearn.neighbors import NearestNeighbors
+from tqdm import tqdm
 
+from api.youtube_api import YoutubeAPI
+from models.llm_api import LLM
+from models.math_funcs import cos_sim
+from models.text_models import TextModelManager
 from structures.comment import Comment, flatten_comments, sample_from_comments
 from util.string_utils import post_process_single_entry_json
-from models.math_funcs import cos_sim
-from api.youtube_api import YoutubeAPI
-from models.text_models import TextModelManager
-from models.llm_api import LLM
 
-
-import logging
 logger = logging.getLogger(__name__)
 
 
 class Clustering:
-    def __init__(self, labels: np.ndarray, labels_unique: List[int], silhouette_coef: float, clustering_function=None, topics: Dict[int, str] = None):
+    def __init__(self, labels: np.ndarray, labels_unique: List[int], silhouette_coef: float, clustering_function=None,
+                 topics: Dict[int, str] = None):
         self.labels = labels
         self.labels_unique = [int(l) for l in labels_unique]
         self.num_clusters = len(self.labels_unique)
@@ -56,12 +57,12 @@ class ClusteringAnalyzer:
                 emb_vecs.append(comm.get_embedding())
             self._emb_matrix = np.stack(emb_vecs)
         return self._emb_matrix
-    
+
     @staticmethod
     def _eval_clustering(matrix, labels):
         logger.info("Evaluating ...")
         labs_unique = list(np.unique(labels))
-        
+
         # Silhouette score for each sample (i.e., comment)
         try:
             sil_coef = silhouette_score(matrix, labels)
@@ -71,11 +72,12 @@ class ClusteringAnalyzer:
 
         logger.info("Evaluation done!")
         return labs_unique, sil_coef
-    
+
     def _generate_clusterings(self, max_points_to_cluster=2500) -> List[Clustering]:
         # Clustering settings
         n_range = [2, 3, 4, 5, 6, 7, 8, 16, 32, 64]
-        n_range = [n for n in n_range if n < len(self._comments)]  # remove cluster counts larger than the number of samples
+        n_range = [n for n in n_range if
+                   n < len(self._comments)]  # remove cluster counts larger than the number of samples
         clus_funs = [
             cluster_kmeans,
             cluster_gmm
@@ -141,7 +143,7 @@ class ClusteringAnalyzer:
             frac_limit = min(2 / num_clusters, 0.8)
             if max(cluster_fractions) > frac_limit:
                 continue
-            
+
             # Add clustering
             clustering = Clustering(
                 labels=labels,
@@ -150,9 +152,9 @@ class ClusteringAnalyzer:
                 clustering_function=clus_fun
             )
             clusterings.append(clustering)
-        
+
         return clusterings
-    
+
     def _pick_clustering(self, clusterings: List[Clustering]) -> Clustering:
         # Sort by mean of Silhouette coefficient: largest first
         clusterings.sort(key=lambda clus: clus.silhouette_coef, reverse=True)
@@ -198,19 +200,20 @@ class ClusteringAnalyzer:
                 r['random_comments'] = []
 
                 clus_indices = np.where(labels == lab)[0]
-                rnd_indices = np.random.choice(clus_indices, size=min(show_random_comments, cluster_size), replace=False)
+                rnd_indices = np.random.choice(clus_indices, size=min(show_random_comments, cluster_size),
+                                               replace=False)
                 for idx in rnd_indices:
                     comment = self._comments[idx]
                     r['random_comments'].append(comment)
-        
+
         return res
 
     def plot_clustering(self, clustering: Clustering, use_umap=True):
         # Prepare colormap for plotting
         cm_steps = len(clustering.labels_unique)
         hsv = mpl.colormaps.get_cmap('hsv')
-        cmap = mpl.colors.ListedColormap(hsv(np.linspace(0,1,cm_steps + 1)[:-1]))
-        
+        cmap = mpl.colors.ListedColormap(hsv(np.linspace(0, 1, cm_steps + 1)[:-1]))
+
         # Reduce the dimensionality of the clustered points (embedding vectors)
         if use_umap:
             # UMAP
@@ -239,7 +242,7 @@ class ClusteringAnalyzer:
         for lab, topic in clustering_topics.items():
             # Store this cluster label and topic as a tuple
             tup = (lab, topic)
-            
+
             # Try to find a spot for this topic in one of the groups
             found_group = False
             for group in cluster_groups:
@@ -263,9 +266,9 @@ class ClusteringAnalyzer:
 
             # Start a new group
             cluster_groups.append([tup])
-        
+
         return cluster_groups
-    
+
     def _synthesize_fused_topic_names(self, cluster_groups: List[Tuple[int, str]]) -> List[Tuple[List[int], str]]:
         fused_groups = []
         for group in tqdm(cluster_groups, desc="Fusing groups ..."):
@@ -279,9 +282,9 @@ class ClusteringAnalyzer:
                 topic = topics[0]
 
             fused_groups.append((labs, topic))
-        
+
         return fused_groups
-    
+
     def _reassign_grouped_clusters(self, fused_groups: List[Tuple[List[int], str]]) -> None:
         clustering = self._clustering
         clustering.topics = {}  # reset topics dictionary - we will fill it with the new topics
@@ -325,10 +328,10 @@ class ClusteringAnalyzer:
     def _fuse_clusters_by_topic(self) -> None:
         # Fuse based on embedding distance/similarity of topics
         cluster_groups = self._fuse_clusters_embedding_sim(self._clustering.topics)
-        
+
         # Give fused groups new names
         fused_groups = self._synthesize_fused_topic_names(cluster_groups)
-        
+
         # Change labeling of clustering to reflect group fusions
         self._reassign_grouped_clusters(fused_groups)
 
@@ -336,35 +339,36 @@ class ClusteringAnalyzer:
         lines = [f"You are a professional YouTube comment analyst. Given a video title and some comments," \
                  " find the topic of the comments."]
         lines.append(f"Video title: {self._video_title}")
-        
+
         lines.append("\nSample from the comments:")
         comm_lines = sample_from_comments(comments)
         lines += comm_lines
 
-        lines.append("\nExtract a single, coherent topic that these comments are discussing. The topic you find can also" \
-                     " be about the style or mood of the comments. " \
-                    "A topic should be a simple notion, e.g., \"Jokes\" or \"Choosing a keyboard\"." \
-                    "There is no need to repeat the video title in your assessment. The topic should also describe what the" \
-                    " comments are saying, so it shouldn't be, e.g., \"Reactions to Video\" or anything generic of that sort." \
-                    " Provide your assessment in the form of JSON such as {\"topic\": your_topic_goes_here}.")
+        lines.append(
+            "\nExtract a single, coherent topic that these comments are discussing. The topic you find can also" \
+            " be about the style or mood of the comments. " \
+            "A topic should be a simple notion, e.g., \"Jokes\" or \"Choosing a keyboard\"." \
+            "There is no need to repeat the video title in your assessment. The topic should also describe what the" \
+            " comments are saying, so it shouldn't be, e.g., \"Reactions to Video\" or anything generic of that sort." \
+            " Provide your assessment in the form of JSON such as {\"topic\": your_topic_goes_here}.")
 
         prompt = "\n".join(lines)
         return prompt
-    
+
     def _build_prompt_fuse_topics(self, topics: List[str]):
         lines = [f"You are a professional YouTube comment analyst. Given a video title and some comment topics," \
                  " find a new description of the topic that reflects the core concept of the listed topics."]
         lines.append(f"Video title: {self._video_title}")
-        
+
         lines.append("\nComment topics:")
         lines += [f"- {t}" for t in topics]
 
         lines.append("\nExtract a single, coherent topic that describes all these topics. The topic you find can also" \
                      " be about the style or mood of the comments. " \
-                    "A topic should be a simple notion, e.g., \"Jokes\" or \"Choosing a keyboard\"." \
-                    "There is no need to repeat the video title in your assessment. The topic shouldn't be," \
-                        " e.g., \"Reactions to Video\" or anything generic of that sort. Provide your assessment" \
-                            " in the form of JSON such as {\"topic\": your_topic_goes_here}.")
+                     "A topic should be a simple notion, e.g., \"Jokes\" or \"Choosing a keyboard\"." \
+                     "There is no need to repeat the video title in your assessment. The topic shouldn't be," \
+                     " e.g., \"Reactions to Video\" or anything generic of that sort. Provide your assessment" \
+                     " in the form of JSON such as {\"topic\": your_topic_goes_here}.")
 
         prompt = "\n".join(lines)
         return prompt

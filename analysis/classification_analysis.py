@@ -1,23 +1,23 @@
 from typing import List, Dict
+
 import numpy as np
 from tqdm import tqdm
 
-
-from structures.comment import Comment, flatten_comments
 from models.computations import ClassificationType
+from structures.comment import Comment, flatten_comments
 
 
 class ClassificationAnalyzer:
     def __init__(self, comments: List[Comment]) -> None:
         self._comments_toplevel = comments
         self._comments_flattened = flatten_comments(comments)
-    
+
     def _find_mean_classes(self, comments: List[Comment], classi_type: ClassificationType, take_argmax=False):
         res = []
         likes = []
         for comm in tqdm(
-            comments,
-            desc=f"Determining computated facts ({classi_type.name}; argmax={take_argmax}) ..."
+                comments,
+                desc=f"Determining computated facts ({classi_type.name}; argmax={take_argmax}) ..."
         ):
             comp = dict(comm.get_classification(classi_type))
 
@@ -25,13 +25,13 @@ class ClassificationAnalyzer:
             if take_argmax:
                 max_idx = np.argmax(comp.values())
                 prob_sum = sum(comp.values())
-                
+
                 for idx, k in enumerate(comp.keys()):
                     if idx == max_idx:
                         comp[k] = float(prob_sum)
                     else:
                         comp[k] = 0.0
-                
+
             res.append(comp)
             likes.append(comm.likes)
 
@@ -59,10 +59,10 @@ class ClassificationAnalyzer:
 
         for argmax_label, argmax_bool in [("soft", False), ("hard", True)]:
             res[argmax_label] = self._find_mean_classes(comments, classi_type, take_argmax=argmax_bool)
-        
+
         return res
-    
-    def show_extreme_class_examples(self, classi_type: ClassificationType, num_shown : int = 10) -> Dict:
+
+    def show_extreme_class_examples(self, classi_type: ClassificationType, num_shown: int = 10) -> Dict:
         res = {'num_shown': num_shown}
 
         r = res['res'] = {}
@@ -76,11 +76,11 @@ class ClassificationAnalyzer:
             ]
 
         return res
-    
+
     @staticmethod
     def _classes_to_arr(comm: Comment, classi_type: ClassificationType):
         return np.array(list(comm.get_classification(classi_type).values()))
-    
+
     def class_disagreement_in_replies(self, classi_type: ClassificationType, num_rows_output: int = 100) -> List:
         # Gather data
         rows = []
@@ -88,17 +88,17 @@ class ClassificationAnalyzer:
             # Skip if there are no replies
             if len(comm.replies) == 0:
                 continue
-        
+
             # Consider the first reply
             repl = comm.replies[0]
-        
+
             # Find out sum of differences between sentiment of comment and reply
             diffs = float(np.sum(
                 np.power(np.abs(self._classes_to_arr(comm, classi_type) - self._classes_to_arr(repl, classi_type)), 2)
             ))
 
             rows.append({"comment": comm.text, "reply": repl.text, "difference": diffs})
-        
+
         # Sort rows by difference - highest first
         rows.sort(key=lambda entry: entry["difference"], reverse=True)
 
@@ -107,7 +107,7 @@ class ClassificationAnalyzer:
             rows = rows[:num_rows_output]
 
         return rows
-    
+
     def classification_analysis(self, classi_type: ClassificationType) -> Dict:
         res = {}
 
@@ -115,7 +115,7 @@ class ClassificationAnalyzer:
         r = res['mean'] = {}
         for comment_label, comment_list in [("top-level", self._comments_toplevel), ("all", self._comments_flattened)]:
             r[comment_label] = self.mean_classification_analysis(comment_list, classi_type)
-        
+
         # Extreme examples
         res['extreme'] = self.show_extreme_class_examples(classi_type)
 
@@ -123,7 +123,7 @@ class ClassificationAnalyzer:
         res['disagreement'] = self.class_disagreement_in_replies(classi_type)
 
         return res
-    
+
     def run_all_analyses(self) -> Dict:
         res = {}
 

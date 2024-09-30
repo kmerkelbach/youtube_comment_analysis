@@ -1,22 +1,20 @@
+import logging
 import os
-from typing import List, Dict
-from json_tricks import dump, load
-import pandas as pd
-import numpy as np
 from glob import glob
 
+import pandas as pd
+from json_tricks import dump, load
 
-import logging
 logger = logging.getLogger(__name__)
 
 
 def get_root_dir():
     # Get the current file's directory
     current_file_directory = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Get the parent directory
     parent_directory = os.path.dirname(current_file_directory)
-    
+
     return parent_directory
 
 

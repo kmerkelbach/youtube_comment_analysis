@@ -1,23 +1,20 @@
-import time
-from http.client import responses
-from typing import Optional, Dict, List
+import logging
 import os
-from dateutil import parser as dateparser
-import numpy as np
-import googleapiclient.discovery, googleapiclient.errors
-from tqdm import tqdm
+import time
+from typing import Optional, Dict, List
 
+import googleapiclient.discovery
+import googleapiclient.errors
+import numpy as np
+from dateutil import parser as dateparser
+from tqdm import tqdm
 
 from structures.comment import Comment
 
-
-import logging
 logger = logging.getLogger(__name__)
-
 
 # Disable httpx logging
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
 
 # Fields for navigating API responses
 field_npt = "nextPageToken"
@@ -86,9 +83,9 @@ class YoutubeAPI:
         for potential_id in ids:
             if potential_id is not None:
                 return potential_id
-            
+
         raise ValueError("No YouTube video ID specified!")
-    
+
     def get_video_info(self, video_id: Optional[str] = None) -> Dict:
         video_id = self._get_video_id(video_id)
 
@@ -107,7 +104,7 @@ class YoutubeAPI:
         self._video_info[video_id] = response
 
         return response
-    
+
     def get_title(self, video_id: Optional[str] = None, unk: str = "<Unknown Title>") -> str:
         video_id = self._get_video_id(video_id)
 
@@ -117,7 +114,7 @@ class YoutubeAPI:
             return video_info[field_items][0][field_sni][field_title]
         except:
             return unk
-        
+
     def get_comment_count(self, video_id: Optional[str] = None, unk: float = float('nan')) -> int:
         video_id = self._get_video_id(video_id)
 
@@ -127,7 +124,7 @@ class YoutubeAPI:
             return int(video_info[field_items][0][field_stats][field_cmmt_cnt])
         except:
             return unk
-        
+
     def get_creator_name(self, video_id: Optional[str] = None, unk: str = "<Unknown Creator>") -> str:
         video_id = self._get_video_id(video_id)
 
@@ -137,7 +134,7 @@ class YoutubeAPI:
             return video_info[field_items][0][field_sni][field_channel_title]
         except:
             return unk
-    
+
     def _get_comments_page_raw(self, video_id: Optional[str] = None, max_results: int = 50, page_token: str = None,
                                num_retries: int = 20, wait_time: float = 0.05):
         video_id = self._get_video_id(video_id)
@@ -165,17 +162,17 @@ class YoutubeAPI:
             break
 
         return response
-    
+
     def _get_comments_raw(self, video_id: Optional[str] = None, req: int = 200, max_count_per_page: int = 100):
         video_id = self._get_video_id(video_id)
 
         # Find out the number of comments. We will use it to estimate the number of pages required
         total_comment_count = self.get_comment_count(video_id)
         num_pages_req_max = int(np.ceil(total_comment_count / max_count_per_page))
-        
+
         comments = []
         if req is None:
-            req = 2**63 - 1
+            req = 2 ** 63 - 1
         comments_left = req
         have_enough_comments = False
         next_page_token = None
@@ -206,26 +203,26 @@ class YoutubeAPI:
 
         logger.info(f"Finished raw comment retrieval of {len(comments)} top-level comments.")
         return comments
-    
+
     # Find comments for which we don't have all of the replies
     def _retrieve_all_replies(self, comments_raw):
         for comm in tqdm(comments_raw, desc="Getting replies for comments with missing replies ..."):
             # Skip if the required fields are not present
             if field_sni not in comm:
                 continue
-        
+
             # Check if we have all of the replies
             num_replies_stated = comm[field_sni][field_repl_count]
-            
+
             if field_repl not in comm:
                 num_replies_actual = 0
             else:
                 num_replies_actual = len(comm[field_repl][field_comments])
-        
+
             # Skip if we have all of the replies
             if num_replies_stated == num_replies_actual:
                 continue
-        
+
             # Get all replies for this comment
             replies = []
             next_page_token = None
@@ -241,16 +238,16 @@ class YoutubeAPI:
                     req_kwargs["pageToken"] = next_page_token
                 request = self._client.comments().list(**req_kwargs)
                 response = request.execute()
-        
+
                 # Store replies
                 replies += response[field_items]
 
                 # Go to next page
                 next_page_token = response.get(field_npt, None)
-        
+
             # Save replies back to the original dictionary, preserving its structure
             comm[field_repl][field_comments] = replies
-    
+
     def _instantiate_comment(self, comm):
         # Get text
         sni = comm[field_sni]
@@ -282,43 +279,43 @@ class YoutubeAPI:
             likes=likes,
             replies=replies
         )
-        
+
         return comment
-    
+
     def _instantiate_all_comments(self, comments_raw):
         comments_new = []
         for comm in tqdm(comments_raw, desc="Converting comments to our own class ..."):
             comments_new.append(self._instantiate_comment(comm))
         return comments_new
-    
+
     def _deduplicate_comments(self, comments: List[Comment], silent=False):
         def key_for_comment(comm: Comment) -> str:
             return f"{comm.author}@{comm.time.isoformat()}: '{comm.text}' ({len(comm.replies)} replies)"
-        
+
         def deduplicate(comments: List[Comment], silent=False):
             seen = set()
             deduped = []
-            
+
             for comm in tqdm(comments, desc="Deduplicating comments ...", disable=silent):
                 # Get unique key for comment
                 k = key_for_comment(comm)
-            
+
                 # Skip comment if we have already seen it
                 if k in seen:
                     continue
-                
+
                 seen.add(k)
 
                 # Deduplicate replies
                 comm.replies = deduplicate(comments=comm.replies, silent=True)
-            
+
                 # Add comment to list of deduplicated comments
                 deduped.append(comm)
 
             return deduped
-        
+
         return deduplicate(comments=comments, silent=silent)
-    
+
     def get_comments(self, video_id: Optional[str] = None, req: int = None):
         video_id = self._get_video_id(video_id)
 
@@ -336,7 +333,7 @@ class YoutubeAPI:
 
         # Remove duplicate comments
         comments = self._deduplicate_comments(comments)
-        
+
         return comments
 
     def get_video_lang(self, video_id: Optional[str] = None):

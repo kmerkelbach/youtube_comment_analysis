@@ -2,18 +2,15 @@
 # coding: utf-8
 
 import argparse
-import os
+# Logging
+import logging
 
 import numpy as np
 import pandas as pd
 
 from api.youtube_api import YoutubeAPI
 # My own modules
-from structures.report import Report
 from execution.run_comment_analysis import AnalysisRunner
-
-# Logging
-import logging
 
 logging.basicConfig(
     level=logging.INFO,  # Set the logging level
@@ -23,7 +20,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 # CSV fields
 field_url = "URL"
 field_title = "Title"
@@ -32,7 +28,6 @@ field_num_comments = "# Comments"
 field_summary = "Summary"
 field_llm_total_chars = "# LLM Characters"
 field_video_id = "Video ID"
-
 
 
 class CSVRunner:
@@ -108,6 +103,7 @@ class CSVRunner:
         runner = AnalysisRunner(yt_video_id=video_id)
         runner.run_all_analyses()
         return runner
+
 
 def parse_args():
     parser = argparse.ArgumentParser("YouTube Comment Analyzer - CSV Mode")

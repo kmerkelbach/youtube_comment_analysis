@@ -1,21 +1,19 @@
-from typing import List, Dict, Optional
-import numpy as np
-import pandas as pd
-from tqdm import tqdm
-from collections import defaultdict
 import itertools
-
-
-from structures.comment import Comment, sample_from_comments
-from models.computations import ClassificationType
-from models.math_funcs import max_class
-from util.string_utils import post_process_extract_statements, post_process_single_entry_json
-from util.file_utils import save_snippet
-from api.youtube_api import YoutubeAPI
-from models.llm_api import LLM
-
-
 import logging
+from collections import defaultdict
+from typing import List, Optional
+
+import numpy as np
+from tqdm import tqdm
+
+from api.youtube_api import YoutubeAPI
+from models.computations import ClassificationType
+from models.llm_api import LLM
+from models.math_funcs import max_class
+from structures.comment import Comment, sample_from_comments
+from util.file_utils import save_snippet
+from util.string_utils import post_process_extract_statements, post_process_single_entry_json
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +44,7 @@ class StatementsAnalyzer:
         # Cached results
         self._sentiment_groups = None
         self._comment_statements = None
-    
+
     def _group_comments(self):
         sentiment_groups = defaultdict(list)
 
@@ -56,35 +54,39 @@ class StatementsAnalyzer:
             magnitude = comp[sen]
             if magnitude > 0.25:
                 sentiment_groups[sen].append(comm)
-        
+
         # Save groups
         self._sentiment_groups = sentiment_groups
 
     def _build_prompt_extract_statements(self, comments: List[Comment]) -> str:
-        lines = [f"You are a professional YouTube comment analyst. Given a video title and some comments, extract statements from the comments."]
-        lines.append(f"Video title: {self._video_title}")
-        
-        lines.append("\nSample from the comments:")
+        lines = [
+            f"You are a professional YouTube comment analyst. Given a video title and some comments, extract statements from the comments.",
+            f"Video title: {self._video_title}", "\nSample from the comments:"]
+
         comm_lines = sample_from_comments(comments)
         lines += comm_lines
 
-        lines.append("\nExtract 5 statements voiced in the comments. A statement should be a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\". Phrase each statement in a way it could be uttered by a viewer of the video. " \
-                    "Do not explain any of the statements you extract. " \
-                    "There is no need to repeat the video title in your assessment.")
+        lines.append(
+            "\nExtract 5 statements voiced in the comments. A statement should be a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\". Phrase each statement in a way it could be uttered by a viewer of the video. " \
+            "Do not explain any of the statements you extract. " \
+            "There is no need to repeat the video title in your assessment.")
 
         prompt = "\n".join(lines)
         return prompt
-    
+
     def _build_prompt_do_statements_agree(self, statement_1: str, statement_2: str) -> str:
-        lines = ["You are a professional YouTube video comment analyst. Given a video title and a statement (or a comment) about the video, decide if the statements two agree. Note that it may be possible for a statement or a comment to express the desire for change or to voice disagreement."]
+        lines = [
+            "You are a professional YouTube video comment analyst. Given a video title and a statement (or a comment) about the video, decide if the statements two agree. Note that it may be possible for a statement or a comment to express the desire for change or to voice disagreement."]
         lines.append(f"Video title: {self._video_title}")
         lines.append(f"Statement 1: {statement_1}")
         lines.append(f"Statement 2: {statement_2}")
 
-        lines.append("\nA statement is a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\".")
-        lines.append(f"First, think step by step about the two statements to determine if they agree. Finally, give your assessment of the agreement on a scale of {self.agreement_prompt_settings['min']} for total disagreement to {self.agreement_prompt_settings['max']} for total agreement. " \
-                    f"The number {self.agreement_prompt_settings['neut']} is for unrelated statements (those which discuss different matters). Even if the sentiments of the statements are opposite: If they discuss different matters, the assessment should be {self.agreement_prompt_settings['neut']}. " \
-                    "Provide your assessment in the form of JSON such as {\"agreement\": your_number_goes_here}.")
+        lines.append(
+            "\nA statement is a simple thought expressed by many comments, e.g., \"The video was well-edited.\" or \"I disagree with the premise of the video.\".")
+        lines.append(
+            f"First, think step by step about the two statements to determine if they agree. Finally, give your assessment of the agreement on a scale of {self.agreement_prompt_settings['min']} for total disagreement to {self.agreement_prompt_settings['max']} for total agreement. " \
+            f"The number {self.agreement_prompt_settings['neut']} is for unrelated statements (those which discuss different matters). Even if the sentiments of the statements are opposite: If they discuss different matters, the assessment should be {self.agreement_prompt_settings['neut']}. " \
+            "Provide your assessment in the form of JSON such as {\"agreement\": your_number_goes_here}.")
 
         prompt = "\n".join(lines)
         return prompt
@@ -105,9 +107,9 @@ class StatementsAnalyzer:
             res_raw = self._llm.chat(prompt)
             res_lines = post_process_extract_statements(res_raw)
             comment_statements[sen] = res_lines
-        
+
         return comment_statements
-    
+
     def _do_statements_agree(self, statement_1: str, statement_2: str, trials=6):
         # Make prompt
         prompt = self._build_prompt_do_statements_agree(statement_1, statement_2)
@@ -129,7 +131,7 @@ class StatementsAnalyzer:
 
         if rating is None:
             rating = 0
-        
+
         # If no rating could be extracted, mark the statements as being neutral
         rating_raw = rating
         if rating_raw is None:
@@ -149,7 +151,7 @@ class StatementsAnalyzer:
         )
 
         return rating
-    
+
     def _check_agreement_all(self, comments_topk: List[Comment]):
         statement_scores = defaultdict(float)  # used to calculate a weighted score, e.g., 2.54 on a scale of -5 to 5
         statement_voices = defaultdict(dict)  # used to calculate how many people talk about the statement and what
@@ -188,12 +190,12 @@ class StatementsAnalyzer:
             if voice_class not in statement_voices[statement]:
                 statement_voices[statement][voice_class] = 0
             statement_voices[statement][voice_class] += likes_weight
-        
+
         return statement_scores, statement_voices
-    
+
     def _get_voice_class(self, agreement_rating: int):
         return self.voice_pos if agreement_rating > 0 else (self.voice_neg if agreement_rating < 0 else self.voice_neut)
-    
+
     def run_analysis(self, limit_statements: Optional[int] = None, comment_top_k: int = 50):
         res = {}
 
@@ -208,7 +210,7 @@ class StatementsAnalyzer:
                 )]
                 for (kind, statements) in self._comment_statements.items()
             }
-        
+
         # Get the top k comments according to likes
         comments_topk = sorted(self._comments, key=lambda comm: comm.likes, reverse=True)[:comment_top_k]
 
@@ -249,7 +251,7 @@ class StatementsAnalyzer:
             }
             if frac_engaged > 0:
                 voice_result['opinions'] = {opinion: fraction for (opinion, fraction) in agree_info}
-            
+
             r[statement] = voice_result
 
         return res

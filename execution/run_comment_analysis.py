@@ -1,26 +1,25 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import logging
 import argparse
-
-# My own modules
-from models.text_models import TextModelManager
-from models.llm_api import LLM
-from api.youtube_api import YoutubeAPI
-from analysis.classification_analysis import ClassificationAnalyzer
-from analysis.statements_analysis import StatementsAnalyzer
-from analysis.clustering import ClusteringAnalyzer
-from analysis.summarizer import ReportSummarizer
-from structures.report import Report
-from structures.comment import flatten_comments
-
-
 # Logging
 import logging
+
+from analysis.classification_analysis import ClassificationAnalyzer
+from analysis.clustering import ClusteringAnalyzer
+from analysis.statements_analysis import StatementsAnalyzer
+from analysis.summarizer import ReportSummarizer
+from api.youtube_api import YoutubeAPI
+from models.llm_api import LLM
+# My own modules
+from models.text_models import TextModelManager
+from structures.comment import flatten_comments
+from structures.report import Report
+
 logging.basicConfig(
     level=logging.INFO,  # Set the logging level
-    format='%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s',  # Define the log format with milliseconds
+    format='%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s',
+    # Define the log format with milliseconds
     datefmt='%Y-%m-%d %H:%M:%S'  # Define the date and time format without milliseconds
 )
 logger = logging.getLogger(__name__)
@@ -28,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 class AnalysisRunner:
     def __init__(self, yt_video_id: str) -> None:
-
         # Initialize classification models
         self.text_model_manager = TextModelManager()
 
@@ -72,7 +70,7 @@ class AnalysisRunner:
 
         yt_video_id = yt_video_test_id_25_comments
         return yt_video_id
-    
+
     def run_all_analyses(self):
         # General facts
         self._report._comment_count_toplevel = len(self.comments)
@@ -110,7 +108,6 @@ class AnalysisRunner:
 
         # Save report
         self._report.save_to_disk()
-
 
 
 def parse_args():

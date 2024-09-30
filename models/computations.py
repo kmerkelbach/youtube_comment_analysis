@@ -6,6 +6,7 @@ class ClassificationType(Enum):
     Toxicity = auto()
     Emotion = auto()
 
+
 classification_length_limits = {
     ClassificationType.Sentiment: 1500,
     ClassificationType.Toxicity: 1500,

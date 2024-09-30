@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import List
+
 import numpy as np
 
-from util.string_utils import truncate_line
 from models.computations import ClassificationType
 from models.text_models import TextModelManager
+from util.string_utils import truncate_line
 
 
 class Comment:
@@ -29,7 +30,7 @@ class Comment:
         if classi_type not in self._classifier_res:
             self._classifier_res[classi_type] = self._text_model_manager.classify(self.text, classi_type)
         return self._classifier_res[classi_type]
-    
+
     def get_embedding(self):
         if self._embedding is None:
             self._embedding = self._text_model_manager.embed(self.text)
@@ -53,11 +54,12 @@ def flatten_comments(comments: List[Comment]):
 
         # Add its replies
         res += flatten_comments(comm.replies)
-    
+
     return res
 
 
-def sample_from_comments(comments: List[Comment], max_chars_per_comment: int = 200, max_comment_chars_shown: int = 2500) -> List[str]:
+def sample_from_comments(comments: List[Comment], max_chars_per_comment: int = 200,
+                         max_comment_chars_shown: int = 2500) -> List[str]:
     # Create a shuffled list of comment indices
     indices = np.arange(len(comments))
     np.random.shuffle(indices)
@@ -84,5 +86,5 @@ def sample_from_comments(comments: List[Comment], max_chars_per_comment: int = 2
 
         # Add the comment text
         comm_lines.append(f"- \"{text}\"")
-    
+
     return comm_lines

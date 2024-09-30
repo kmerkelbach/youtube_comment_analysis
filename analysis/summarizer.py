@@ -1,19 +1,12 @@
-from typing import List, Dict, Optional
-import numpy as np
-import pandas as pd
-from tqdm import tqdm
-from collections import defaultdict
-import itertools
-
+import logging
+from typing import List
 
 from api.youtube_api import YoutubeAPI
 from models.llm_api import LLM
-from structures.report import Report
 from structures.comment import Comment, sample_from_comments
+from structures.report import Report
 from util.string_utils import format_large_number
 
-
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +26,8 @@ class ReportSummarizer:
         self._report = report
 
     def _prompt_summary(self):
-        lines = ["You are a professional YouTube video comment analyst. Given a video title and analytical statements made about the comments on the video, summarize the analysis."]
+        lines = [
+            "You are a professional YouTube video comment analyst. Given a video title and analytical statements made about the comments on the video, summarize the analysis."]
         lines.append("")
 
         # General facts
@@ -60,7 +54,8 @@ class ReportSummarizer:
             score = s_scores[statement]
             s_lines = []
             s_lines.append(f"Statement {idx + 1}: {statement}")
-            s_lines.append(f"Agreement score is {score:0.0f} (a value between {score_ranges['min']} and {score_ranges['max']}).")
+            s_lines.append(
+                f"Agreement score is {score:0.0f} (a value between {score_ranges['min']} and {score_ranges['max']}).")
             s_lines.append(f"{100 * voice_info['frac_engaged']:0.0f}% of comments are talking about this.")
             if 'opinions' in voice_info:
                 s_lines.append(f"Out of those, " +
@@ -112,6 +107,3 @@ class ReportSummarizer:
 
         # Save summary
         self._report.summary = summary
-
-    
-

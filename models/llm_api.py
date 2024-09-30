@@ -1,9 +1,9 @@
+import logging
 import os
 import time
+
 from fireworks.client import Fireworks
 
-
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -18,7 +18,7 @@ class LLM:
     def __init__(self) -> None:
         if not hasattr(self, '_initialized'):
             self._initialized = True
-            
+
             # Set up client
             self._client = Fireworks(api_key=os.getenv("FIREWORKSAI_KEY"))
 
@@ -41,7 +41,7 @@ class LLM:
         chat_completion = self._client.chat.completions.create(
             model="accounts/fireworks/models/llama-v3-70b-instruct",
             messages=[{"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}],
+                      {"role": "user", "content": prompt}],
             temperature=0.7
         )
 
