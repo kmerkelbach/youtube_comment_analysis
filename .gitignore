@@ -3,3 +3,5 @@ data
 __pycache__
 .idea
 notes*.txt
+*.csv
+*.ods
