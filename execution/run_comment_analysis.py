@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+
 # Logging
 import logging
 
@@ -11,7 +12,8 @@ from analysis.statements_analysis import StatementsAnalyzer
 from analysis.summarizer import ReportSummarizer
 from api.youtube_api import YoutubeAPI
 from models.llm_api import LLM
-# My own modules
+
+# Internal modules
 from models.text_models import TextModelManager
 from structures.comment import flatten_comments
 from structures.report import Report

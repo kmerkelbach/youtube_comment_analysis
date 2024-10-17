@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import argparse
+
 # Logging
 import logging
 
@@ -9,7 +10,8 @@ import numpy as np
 import pandas as pd
 
 from api.youtube_api import YoutubeAPI
-# My own modules
+
+# Internal modules
 from execution.run_comment_analysis import AnalysisRunner
 
 logging.basicConfig(
